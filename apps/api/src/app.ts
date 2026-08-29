@@ -1,0 +1,61 @@
+import fastify, { type FastifyInstance, type FastifyError } from 'fastify';
+import cors from '@fastify/cors';
+import { randomUUID } from 'node:crypto';
+import { env } from './config/env.js';
+import { loggerConfig } from './infrastructure/logger/index.js';
+import { healthRoutes } from './modules/health/health.routes.js';
+
+export function buildApp(): FastifyInstance {
+  const app = fastify({
+    logger: loggerConfig,
+    genReqId: (req) => (req.headers['x-request-id'] as string) || randomUUID()
+  });
+
+  // Enable CORS
+  app.register(cors, {
+    origin: env.CORS_ORIGIN,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+  });
+
+  // Global Error Handler
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    request.log.error({
+      err: error,
+      reqId: request.id,
+      url: request.url,
+      method: request.method
+    }, 'Unhandled exception during request');
+
+    const statusCode = error.statusCode || 500;
+    const isProd = env.NODE_ENV === 'production';
+
+    return reply.status(statusCode).send({
+      success: false,
+      error: {
+        code: error.code || 'INTERNAL_SERVER_ERROR',
+        message: isProd && statusCode === 500 ? 'An unexpected error occurred' : error.message,
+        statusCode,
+        requestId: request.id
+      }
+    });
+  });
+
+  // 404 Handler
+  app.setNotFoundHandler((request, reply) => {
+    return reply.status(404).send({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: `Route ${request.method} ${request.url} not found`,
+        statusCode: 404,
+        requestId: request.id
+      }
+    });
+  });
+
+  // Register Routes
+  app.register(healthRoutes);
+
+  return app;
+}
