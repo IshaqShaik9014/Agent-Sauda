@@ -12,6 +12,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@agent-sauda/database": "*",
     "@agent-sauda/domain": "*",
     "@fastify/cors": "^10.0.2",
     "dotenv": "^16.4.7",

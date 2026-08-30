@@ -1,0 +1,491 @@
+// ===================================================
+// AGENT SAUDA - RELATIONAL DATABASE SCHEMA (PRISMA)
+// ===================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum MerchantRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum PolicyDecision {
+  ALLOW
+  COUNTER
+  APPROVAL_REQUIRED
+  REJECT
+}
+
+enum OfferStatus {
+  DRAFT
+  ACTIVE
+  ACCEPTED
+  SUPERSEDED
+  EXPIRED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OrderStatus {
+  NEGOTIATING
+  OFFER_CREATED
+  APPROVAL_PENDING
+  APPROVED
+  PAYMENT_PENDING
+  PAYMENT_PROCESSING
+  PAID
+  FULFILLMENT_PENDING
+  COMPLETED
+  PAYMENT_FAILED
+  PRICE_CHANGED
+  INVENTORY_CHANGED
+  APPROVAL_REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum MessageSender {
+  BUYER
+  AGENT
+  SYSTEM
+}
+
+enum ActorType {
+  USER
+  AGENT
+  SYSTEM
+  WEBHOOK
+}
+
+enum WebhookStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+// ============================================================================
+// 1. Users & Multi-Tenant Merchant Membership
+// ============================================================================
+
+model User {
+  id           String           @id @default(uuid())
+  email        String           @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  memberships  MerchantMember[]
+  orders       Order[]
+  approvals    Approval[]       @relation("ApprovedByUser")
+
+  @@map("users")
+}
+
+model Merchant {
+  id             String           @id @default(uuid())
+  name           String
+  slug           String           @unique
+  currency       String           @default("INR")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  members        MerchantMember[]
+  products       Product[]
+  inventory      Inventory[]
+  policies       Policy?
+  policyVersions PolicyVersion[]
+  conversations  Conversation[]
+  offers         Offer[]
+  approvals      Approval[]
+  orders         Order[]
+  payments       Payment[]
+  auditEvents    AuditEvent[]
+
+  @@map("merchants")
+}
+
+model MerchantMember {
+  id         String       @id @default(uuid())
+  merchantId String
+  userId     String
+  role       MerchantRole @default(STAFF)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  merchant   Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([userId])
+  @@index([merchantId])
+  @@map("merchant_members")
+}
+
+// ============================================================================
+// 2. Catalog & Inventory Management
+// ============================================================================
+
+model Product {
+  id          String           @id @default(uuid())
+  merchantId  String
+  title       String
+  slug        String
+  description String           @default("")
+  category    String           @default("General")
+  basePrice   Float
+  costPrice   Float
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  merchant    Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  variants    ProductVariant[]
+  inventory   Inventory[]
+  offerItems  OfferItem[]
+  orderItems  OrderItem[]
+
+  @@unique([merchantId, slug])
+  @@index([merchantId, isActive])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                String      @id @default(uuid())
+  productId         String
+  sku               String
+  title             String
+  price             Float
+  costPrice         Float
+  inventoryQuantity Int         @default(0)
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  product           Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventory         Inventory[]
+  offerItems        OfferItem[]
+  orderItems        OrderItem[]
+
+  @@unique([productId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model Inventory {
+  id             String          @id @default(uuid())
+  merchantId     String
+  productId      String
+  variantId      String?
+  availableUnits Int             @default(0)
+  reservedUnits  Int             @default(0)
+  location       String          @default("Primary Warehouse")
+  updatedAt      DateTime        @updatedAt
+
+  merchant       Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@unique([productId, variantId])
+  @@index([merchantId])
+  @@map("inventory")
+}
+
+// ============================================================================
+// 3. Merchant Policy Engine & Versioning
+// ============================================================================
+
+model Policy {
+  id                   String          @id @default(uuid())
+  merchantId           String          @unique
+  maxDiscountPercent   Float           @default(8.0)
+  minimumMarginPercent Float           @default(18.0)
+  autonomousOrderLimit Float           @default(100000.0)
+  approvalThreshold    Float           @default(100000.0)
+  maxQuantityPerOrder  Int             @default(100)
+  rules                Json            @default("{}")
+  isActive             Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  merchant             Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  versions             PolicyVersion[]
+
+  @@map("policies")
+}
+
+model PolicyVersion {
+  id                   String   @id @default(uuid())
+  merchantId           String
+  policyId             String
+  versionNumber        Int
+  maxDiscountPercent   Float
+  minimumMarginPercent Float
+  autonomousOrderLimit Float
+  approvalThreshold    Float
+  maxQuantityPerOrder  Int
+  rules                Json
+  changedById          String?
+  changeReason         String   @default("Policy updated")
+  createdAt            DateTime @default(now())
+
+  merchant             Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  policy               Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, versionNumber])
+  @@index([merchantId])
+  @@map("policy_versions")
+}
+
+// ============================================================================
+// 4. Negotiation Engine: Conversations, Messages, & Offers
+// ============================================================================
+
+model Conversation {
+  id             String      @id @default(uuid())
+  merchantId     String
+  buyerId        String?
+  buyerSessionId String?
+  channel        String      @default("WEB")
+  status         String      @default("ACTIVE")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  merchant       Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  messages       Message[]
+  offers         Offer[]
+
+  @@index([merchantId, createdAt])
+  @@index([buyerSessionId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  conversationId String
+  sender         MessageSender
+  content        String
+  toolCalls      Json?
+  toolResults    Json?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model Offer {
+  id             String         @id @default(uuid())
+  conversationId String
+  merchantId     String
+  offerNumber    String         @unique
+  subtotal       Float
+  discountAmount Float          @default(0)
+  discountPercent Float         @default(0)
+  taxAmount      Float          @default(0)
+  totalAmount    Float
+  marginPercent  Float
+  policyDecision PolicyDecision @default(ALLOW)
+  policyReason   String         @default("Compliant with merchant policy")
+  status         OfferStatus    @default(ACTIVE)
+  expiresAt      DateTime
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  merchant       Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  items          OfferItem[]
+  approvals      Approval[]
+  orders         Order[]
+
+  @@index([merchantId, status])
+  @@index([conversationId])
+  @@map("offers")
+}
+
+model OfferItem {
+  id          String          @id @default(uuid())
+  offerId     String
+  productId   String
+  variantId   String?
+  quantity    Int
+  unitPrice   Float
+  agreedPrice Float
+  costPrice   Float
+  subtotal    Float
+
+  offer       Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([offerId])
+  @@map("offer_items")
+}
+
+// ============================================================================
+// 5. Human Approvals
+// ============================================================================
+
+model Approval {
+  id              String         @id @default(uuid())
+  merchantId      String
+  offerId         String
+  requestedById   String?
+  approvedById    String?
+  status          ApprovalStatus @default(PENDING)
+  requestReason   String
+  resolutionNotes String?
+  requestedAt     DateTime       @default(now())
+  resolvedAt      DateTime?
+
+  merchant        Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  offer           Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  approvedBy      User?          @relation("ApprovedByUser", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, status])
+  @@index([offerId])
+  @@map("approvals")
+}
+
+// ============================================================================
+// 6. Orders & Money Movement (Decoupled from Payments)
+// ============================================================================
+
+model Order {
+  id             String        @id @default(uuid())
+  merchantId     String
+  buyerId        String?
+  offerId        String?
+  orderNumber    String        @unique
+  status         OrderStatus   @default(NEGOTIATING)
+  subtotal       Float
+  discountAmount Float         @default(0)
+  taxAmount      Float         @default(0)
+  totalAmount    Float
+  currency       String        @default("INR")
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  merchant       Merchant      @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  buyer          User?         @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  offer          Offer?        @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  items          OrderItem[]
+  payments       Payment[]
+
+  @@index([merchantId, status])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String          @id @default(uuid())
+  orderId     String
+  productId   String
+  variantId   String?
+  title       String
+  sku         String?
+  quantity    Int
+  unitPrice   Float
+  agreedPrice Float
+  costPrice   Float
+  total       Float
+
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                 String        @id @default(uuid())
+  merchantId         String
+  orderId            String
+  razorpayOrderId    String        @unique
+  razorpayPaymentId  String?       @unique
+  razorpaySignature  String?
+  amount             Float
+  currency           String        @default("INR")
+  status             PaymentStatus @default(PENDING)
+  attempts           Int           @default(1)
+  errorCode          String?
+  errorDescription   String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  merchant           Merchant      @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, status])
+  @@index([orderId])
+  @@map("payments")
+}
+
+// ============================================================================
+// 7. Webhook Idempotency & Immutable Audit Events
+// ============================================================================
+
+model WebhookEvent {
+  id              String        @id @default(uuid())
+  eventId         String        @unique
+  eventType       String
+  payload         Json
+  signature       String
+  status          WebhookStatus @default(PENDING)
+  processingError String?
+  receivedAt      DateTime      @default(now())
+  processedAt     DateTime?
+
+  @@index([eventId])
+  @@index([status, receivedAt])
+  @@map("webhook_events")
+}
+
+model AuditEvent {
+  id         String    @id @default(uuid())
+  merchantId String
+  entityType String
+  entityId   String
+  action     String
+  actorType  ActorType @default(SYSTEM)
+  actorId    String?
+  reason     String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_events")
+}

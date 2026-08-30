@@ -15,7 +15,11 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "clean": "npm run clean --workspaces --if-present"
+    "clean": "npm run clean --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace=@agent-sauda/database",
+    "db:push": "npm run db:push --workspace=@agent-sauda/database",
+    "db:seed": "npm run db:seed --workspace=@agent-sauda/database",
+    "db:studio": "npm run db:studio --workspace=@agent-sauda/database"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
