@@ -1,6 +1,8 @@
 import fastify, { type FastifyInstance, type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUi from '@fastify/swagger-ui';
 import { randomUUID } from 'node:crypto';
 import { env } from './config/env.js';
 import { loggerConfig } from './infrastructure/logger/index.js';
@@ -10,7 +12,12 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 export function buildApp(): FastifyInstance {
   const app = fastify({
     logger: loggerConfig,
-    genReqId: (req) => (req.headers['x-request-id'] as string) || randomUUID()
+    genReqId: (req) => (req.headers['x-request-id'] as string) || randomUUID(),
+    ajv: {
+      customOptions: {
+        strict: false
+      }
+    }
   });
 
   // Enable CORS
@@ -23,6 +30,50 @@ export function buildApp(): FastifyInstance {
   // Register JWT Plugin
   app.register(fastifyJwt, {
     secret: env.JWT_SECRET
+  });
+
+  // Register OpenAPI / Swagger Documentation Generator
+  app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: 'Agent Sauda API Documentation',
+        description:
+          'Interactive API specification for Agent Sauda — "AI agents negotiate. Merchants stay in control."\n\n' +
+          '**Architecture Principles**:\n' +
+          '1. AI proposes money actions, but deterministic backend logic authorizes them.\n' +
+          '2. Multi-tenancy is strictly enforced across all merchant-scoped entities.\n' +
+          '3. Order states are strictly decoupled from raw Razorpay payment transitions.',
+        version: '0.1.0'
+      },
+      servers: [
+        {
+          url: `http://localhost:${env.PORT}`,
+          description: 'Local Development Server'
+        }
+      ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'Provide your JWT session token obtained from /api/auth/login or /api/auth/register'
+          }
+        }
+      }
+    }
+  });
+
+  // Register Interactive Swagger UI at /docs
+  app.register(fastifySwaggerUi, {
+    routePrefix: '/docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true,
+      displayRequestDuration: true
+    },
+    staticCSP: true,
+    transformStaticCSP: (header) => header
   });
 
   // Global Error Handler
