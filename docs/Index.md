@@ -32,6 +32,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-006 Redacted Agent Catalog Boundary]]: Why internal `costPrice` is redacted from agent tools.
 * [[ADR-007 Pure Rule Pipeline Without LLM Discretion]]: Pure mathematical evaluation engine without database/network I/O in the evaluation loop.
 * [[ADR-008 Tool Calling Sales Agent with Fallback Driver]]: Tool-gated negotiation loop and deterministic driver fallback.
+* [[ADR-009 Time-Bound Formal Offers with Expiration]]: Immutable offer creation with lazy 24-hour expiration.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -40,11 +41,13 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 4 Merchant and Catalog Management]]: Catalog CRUD, warehouse inventory, and agent tool endpoint.
 * [[Phase 5 Deterministic Policy Engine]]: Mathematical guardrails, 4 deterministic outcomes, and version history.
 * [[Phase 6 AI Sales Agent]]: Autonomous sales agent with tool calling (`search_catalog`, `check_inventory`, `propose_offer`).
-* [[Phase 7 Offer Management]]: Structured offer state machine, lifecycle tracking, and checkout link generation *(Next)*.
+* [[Phase 7 Offer Management]]: Formal offer materialization, 24h expiration, and buyer checkout endpoints.
+* [[Phase 8 Human in the Loop Approvals]]: Merchant approval queues, timeout auto-rejections, and staff actions *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
 * [[AI Tool Calling Loop]]: How conversational turns trigger backend tool executions.
+* [[Offer Lifecycle State Machine]]: The journey of formal quotes from `ACTIVE` to `ACCEPTED`, `EXPIRED`, or `REJECTED`.
 * [[Order State Machine]]: Explicit state lifecycle from `NEGOTIATING` to `PAID` / `COMPLETED`.
 * [[Payment State Machine]]: Tracking raw Razorpay transaction attempts, signatures, and webhooks.
 * [[Tenant Isolation]]: Preventing cross-merchant data leakage at the query layer.

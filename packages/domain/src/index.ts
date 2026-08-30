@@ -242,6 +242,98 @@ export const ChatResponseSchema = z.object({
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;
 
 // ============================================================================
+// Offer Management & State Machine Schemas
+// ============================================================================
+export const OfferStatusEnum = z.enum([
+  'DRAFT',
+  'ACTIVE',
+  'ACCEPTED',
+  'SUPERSEDED',
+  'EXPIRED',
+  'REJECTED'
+]);
+export type OfferStatus = z.infer<typeof OfferStatusEnum>;
+
+export const CreateOfferItemInputSchema = z.object({
+  productId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
+  quantity: z.number().int().positive('Quantity must be at least 1'),
+  agreedPrice: z.number().positive('Agreed unit price must be positive')
+});
+export type CreateOfferItemInput = z.infer<typeof CreateOfferItemInputSchema>;
+
+export const CreateOfferInputSchema = z.object({
+  conversationId: z.string().uuid().optional(),
+  items: z.array(CreateOfferItemInputSchema).min(1, 'At least one item is required in the offer'),
+  expirationHours: z.number().int().positive().default(24),
+  customerTier: z.string().optional()
+});
+export type CreateOfferInput = z.infer<typeof CreateOfferInputSchema>;
+
+export const OfferItemResponseSchema = z.object({
+  id: z.string().uuid(),
+  offerId: z.string().uuid(),
+  productId: z.string().uuid(),
+  variantId: z.string().uuid().nullable().optional(),
+  quantity: z.number(),
+  unitPrice: z.number(),
+  agreedPrice: z.number(),
+  subtotal: z.number(),
+  productTitle: z.string(),
+  productSlug: z.string()
+});
+export type OfferItemResponse = z.infer<typeof OfferItemResponseSchema>;
+
+export const OfferResponseSchema = z.object({
+  id: z.string().uuid(),
+  merchantId: z.string().uuid(),
+  conversationId: z.string().uuid(),
+  offerNumber: z.string(),
+  subtotal: z.number(),
+  discountAmount: z.number(),
+  discountPercent: z.number(),
+  taxAmount: z.number(),
+  totalAmount: z.number(),
+  marginPercent: z.number().optional(),
+  policyDecision: PolicyDecisionEnum,
+  policyReason: z.string(),
+  status: OfferStatusEnum,
+  expiresAt: z.date().or(z.string()),
+  isExpired: z.boolean(),
+  checkoutUrl: z.string(),
+  items: z.array(OfferItemResponseSchema),
+  merchant: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string(),
+      slug: z.string(),
+      currency: z.string()
+    })
+    .optional(),
+  createdAt: z.date().or(z.string()),
+  updatedAt: z.date().or(z.string())
+});
+export type OfferResponse = z.infer<typeof OfferResponseSchema>;
+
+export const AcceptOfferInputSchema = z.object({
+  buyerSessionId: z.string().optional()
+});
+export type AcceptOfferInput = z.infer<typeof AcceptOfferInputSchema>;
+
+export const RejectOfferInputSchema = z.object({
+  reason: z.string().default('Customer rejected the offer')
+});
+export type RejectOfferInput = z.infer<typeof RejectOfferInputSchema>;
+
+export const ListOffersQuerySchema = z.object({
+  status: OfferStatusEnum.optional(),
+  conversationId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().positive().default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+});
+export type ListOffersQuery = z.infer<typeof ListOffersQuerySchema>;
+
+// ============================================================================
 // Order State Machine
 // ============================================================================
 export const OrderStatusEnum = z.enum([
@@ -295,6 +387,10 @@ export const AuditActionEnum = z.enum([
   'APPROVAL_REQUESTED',
   'APPROVAL_APPROVED',
   'APPROVAL_REJECTED',
+  'OFFER_CREATED',
+  'OFFER_ACCEPTED',
+  'OFFER_REJECTED',
+  'OFFER_EXPIRED',
   'ORDER_CREATED',
   'ORDER_UPDATED',
   'RAZORPAY_ORDER_CREATED',
