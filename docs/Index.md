@@ -30,13 +30,15 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-004 Database Level Tenant Isolation]]: Foreign key cascade policies and tenant scoping rules.
 * [[ADR-005 Stateless JWT Sessions and RBAC]]: Stateless JWT authentication with `OWNER`, `ADMIN`, `STAFF` roles.
 * [[ADR-006 Redacted Agent Catalog Boundary]]: Why internal `costPrice` is redacted from agent tools.
+* [[ADR-007 Pure Rule Pipeline Without LLM Discretion]]: Pure mathematical evaluation engine without database/network I/O in the evaluation loop.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
 * [[Phase 2 Database and Domain Model]]: 18 relational Prisma models, Neon PostgreSQL, and demo seeding.
 * [[Phase 3 Authentication and Authorization]]: `bcrypt` hashing, `@fastify/jwt` sessions, and RBAC hooks.
 * [[Phase 4 Merchant and Catalog Management]]: Catalog CRUD, warehouse inventory, and agent tool endpoint.
-* [[Phase 5 Deterministic Policy Engine]]: Mathematical guardrails, margin floors, and approval thresholds *(Next)*.
+* [[Phase 5 Deterministic Policy Engine]]: Mathematical guardrails, 4 deterministic outcomes, and version history.
+* [[Phase 6 AI Sales Agent]]: Gemini / DeepSeek LLM sales agent with function tool calling *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.

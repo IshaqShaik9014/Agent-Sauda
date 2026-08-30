@@ -9,6 +9,7 @@ import { loggerConfig } from './infrastructure/logger/index.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
+import { policyRoutes } from './modules/policy/policy.routes.js';
 
 export function buildApp(): FastifyInstance {
   const app = fastify({
@@ -117,6 +118,7 @@ export function buildApp(): FastifyInstance {
   app.register(healthRoutes);
   app.register(authRoutes, { prefix: '/api/auth' });
   app.register(catalogRoutes, { prefix: '/api' });
+  app.register(policyRoutes, { prefix: '/api' });
 
   return app;
 }

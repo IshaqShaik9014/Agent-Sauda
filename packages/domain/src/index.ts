@@ -101,7 +101,7 @@ export const AgentCatalogQuerySchema = z.object({
 export type AgentCatalogQuery = z.infer<typeof AgentCatalogQuerySchema>;
 
 // ============================================================================
-// Policy Decision Enums
+// Policy Decision Enums & Schemas
 // ============================================================================
 export const PolicyDecisionEnum = z.enum([
   'ALLOW',
@@ -110,6 +110,87 @@ export const PolicyDecisionEnum = z.enum([
   'REJECT'
 ]);
 export type PolicyDecision = z.infer<typeof PolicyDecisionEnum>;
+
+export const PolicyConfigSchema = z.object({
+  id: z.string().uuid(),
+  merchantId: z.string().uuid(),
+  maxDiscountPercent: z.number().min(0).max(100),
+  minimumMarginPercent: z.number().min(0).max(100),
+  autonomousOrderLimit: z.number().nonnegative(),
+  approvalThreshold: z.number().nonnegative().nullable().optional(),
+  maxQuantityPerOrder: z.number().int().positive().default(100),
+  rules: z.record(z.unknown()).default({}),
+  isActive: z.boolean().default(true),
+  createdAt: z.date().or(z.string()),
+  updatedAt: z.date().or(z.string())
+});
+export type PolicyConfig = z.infer<typeof PolicyConfigSchema>;
+
+export const UpdatePolicyInputSchema = z.object({
+  maxDiscountPercent: z.number().min(0).max(100).optional(),
+  minimumMarginPercent: z.number().min(0).max(100).optional(),
+  autonomousOrderLimit: z.number().nonnegative().optional(),
+  approvalThreshold: z.number().nonnegative().nullable().optional(),
+  maxQuantityPerOrder: z.number().int().positive().optional(),
+  rules: z.record(z.unknown()).optional(),
+  isActive: z.boolean().optional()
+});
+export type UpdatePolicyInput = z.infer<typeof UpdatePolicyInputSchema>;
+
+export const OfferEvaluationItemSchema = z.object({
+  productId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
+  quantity: z.number().int().positive('Quantity must be at least 1'),
+  proposedUnitPrice: z.number().positive('Proposed unit price must be positive'),
+  basePrice: z.number().positive().optional(),
+  costPrice: z.number().nonnegative().optional()
+});
+export type OfferEvaluationItem = z.infer<typeof OfferEvaluationItemSchema>;
+
+export const OfferEvaluationInputSchema = z.object({
+  items: z.array(OfferEvaluationItemSchema).min(1, 'At least one item is required for evaluation'),
+  customerTier: z.string().optional()
+});
+export type OfferEvaluationInput = z.infer<typeof OfferEvaluationInputSchema>;
+
+export const PolicyRuleBreakdownSchema = z.object({
+  ruleName: z.string(),
+  passed: z.boolean(),
+  value: z.number(),
+  threshold: z.number(),
+  message: z.string()
+});
+export type PolicyRuleBreakdown = z.infer<typeof PolicyRuleBreakdownSchema>;
+
+export const CounterOfferItemSchema = z.object({
+  productId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
+  quantity: z.number().int().positive(),
+  counterUnitPrice: z.number().positive(),
+  originalBasePrice: z.number().positive(),
+  discountPercent: z.number().nonnegative()
+});
+export type CounterOfferItem = z.infer<typeof CounterOfferItemSchema>;
+
+export const OfferEvaluationResultSchema = z.object({
+  decision: PolicyDecisionEnum,
+  allowed: z.boolean(),
+  requiresApproval: z.boolean(),
+  totalBaseAmount: z.number(),
+  totalProposedAmount: z.number(),
+  totalEffectiveDiscountPercent: z.number(),
+  averageGrossMarginPercent: z.number(),
+  counterOffer: z
+    .object({
+      items: z.array(CounterOfferItemSchema),
+      totalCounterAmount: z.number(),
+      counterDiscountPercent: z.number()
+    })
+    .optional(),
+  reasons: z.array(z.string()),
+  breakdowns: z.array(PolicyRuleBreakdownSchema)
+});
+export type OfferEvaluationResult = z.infer<typeof OfferEvaluationResultSchema>;
 
 // ============================================================================
 // Order State Machine
@@ -155,6 +236,7 @@ export const AuditActionEnum = z.enum([
   'PRODUCT_UPDATED',
   'INVENTORY_UPDATED',
   'PRICE_UPDATED',
+  'POLICY_UPDATED',
   'OFFER_PROPOSED',
   'OFFER_CALCULATED',
   'POLICY_EVALUATED',
