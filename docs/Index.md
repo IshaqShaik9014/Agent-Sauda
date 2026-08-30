@@ -31,6 +31,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-005 Stateless JWT Sessions and RBAC]]: Stateless JWT authentication with `OWNER`, `ADMIN`, `STAFF` roles.
 * [[ADR-006 Redacted Agent Catalog Boundary]]: Why internal `costPrice` is redacted from agent tools.
 * [[ADR-007 Pure Rule Pipeline Without LLM Discretion]]: Pure mathematical evaluation engine without database/network I/O in the evaluation loop.
+* [[ADR-008 Tool Calling Sales Agent with Fallback Driver]]: Tool-gated negotiation loop and deterministic driver fallback.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -38,10 +39,12 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 3 Authentication and Authorization]]: `bcrypt` hashing, `@fastify/jwt` sessions, and RBAC hooks.
 * [[Phase 4 Merchant and Catalog Management]]: Catalog CRUD, warehouse inventory, and agent tool endpoint.
 * [[Phase 5 Deterministic Policy Engine]]: Mathematical guardrails, 4 deterministic outcomes, and version history.
-* [[Phase 6 AI Sales Agent]]: Gemini / DeepSeek LLM sales agent with function tool calling *(Next)*.
+* [[Phase 6 AI Sales Agent]]: Autonomous sales agent with tool calling (`search_catalog`, `check_inventory`, `propose_offer`).
+* [[Phase 7 Offer Management]]: Structured offer state machine, lifecycle tracking, and checkout link generation *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
+* [[AI Tool Calling Loop]]: How conversational turns trigger backend tool executions.
 * [[Order State Machine]]: Explicit state lifecycle from `NEGOTIATING` to `PAID` / `COMPLETED`.
 * [[Payment State Machine]]: Tracking raw Razorpay transaction attempts, signatures, and webhooks.
 * [[Tenant Isolation]]: Preventing cross-merchant data leakage at the query layer.

@@ -193,6 +193,55 @@ export const OfferEvaluationResultSchema = z.object({
 export type OfferEvaluationResult = z.infer<typeof OfferEvaluationResultSchema>;
 
 // ============================================================================
+// Agent & Conversational Chat Schemas
+// ============================================================================
+export const ChatMessageRoleEnum = z.enum(['system', 'user', 'assistant', 'tool']);
+export type ChatMessageRole = z.infer<typeof ChatMessageRoleEnum>;
+
+export const ToolCallDefinitionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  arguments: z.record(z.unknown())
+});
+export type ToolCallDefinition = z.infer<typeof ToolCallDefinitionSchema>;
+
+export const ChatMessageSchema = z.object({
+  id: z.string().optional(),
+  role: ChatMessageRoleEnum,
+  content: z.string(),
+  toolCalls: z.array(ToolCallDefinitionSchema).optional(),
+  toolCallId: z.string().optional(),
+  createdAt: z.date().or(z.string()).optional()
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
+export const ChatInputSchema = z.object({
+  conversationId: z.string().uuid().optional(),
+  message: z.string().min(1, 'Message content cannot be empty'),
+  customerId: z.string().optional(),
+  customerName: z.string().optional()
+});
+export type ChatInput = z.infer<typeof ChatInputSchema>;
+
+export const ChatResponseSchema = z.object({
+  success: z.boolean(),
+  conversationId: z.string().uuid(),
+  message: z.string(),
+  toolCallsExecuted: z.array(ToolCallDefinitionSchema).default([]),
+  evaluationResult: OfferEvaluationResultSchema.optional(),
+  activeOffer: z
+    .object({
+      id: z.string().uuid().optional(),
+      status: z.string(),
+      totalAmount: z.number(),
+      currency: z.string(),
+      itemsCount: z.number()
+    })
+    .optional()
+});
+export type ChatResponse = z.infer<typeof ChatResponseSchema>;
+
+// ============================================================================
 // Order State Machine
 // ============================================================================
 export const OrderStatusEnum = z.enum([
