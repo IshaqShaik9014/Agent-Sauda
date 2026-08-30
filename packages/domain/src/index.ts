@@ -57,6 +57,50 @@ export const AuthResponseSchema = z.object({
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 // ============================================================================
+// Catalog & Inventory Schemas
+// ============================================================================
+export const CreateProductInputSchema = z.object({
+  title: z.string().min(2, 'Product title must be at least 2 characters long'),
+  slug: z
+    .string()
+    .min(2, 'Product slug is required')
+    .regex(/^[a-z0-9-]+$/, 'Slug must only contain lowercase alphanumeric characters and hyphens'),
+  description: z.string().default(''),
+  category: z.string().default('General'),
+  basePrice: z.number().positive('Base price must be a positive number'),
+  costPrice: z.number().nonnegative('Cost price must be zero or positive'),
+  initialStock: z.number().int().nonnegative('Initial stock must be zero or positive').default(0),
+  location: z.string().default('Primary Warehouse')
+});
+export type CreateProductInput = z.infer<typeof CreateProductInputSchema>;
+
+export const UpdateProductInputSchema = z.object({
+  title: z.string().min(2).optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  basePrice: z.number().positive().optional(),
+  costPrice: z.number().nonnegative().optional(),
+  isActive: z.boolean().optional()
+});
+export type UpdateProductInput = z.infer<typeof UpdateProductInputSchema>;
+
+export const UpdateInventoryInputSchema = z.object({
+  availableUnits: z.number().int().nonnegative('Available units must be zero or positive'),
+  reservedUnits: z.number().int().nonnegative('Reserved units must be zero or positive').optional(),
+  location: z.string().optional()
+});
+export type UpdateInventoryInput = z.infer<typeof UpdateInventoryInputSchema>;
+
+export const AgentCatalogQuerySchema = z.object({
+  merchantId: z.string().uuid().optional(),
+  merchantSlug: z.string().optional(),
+  category: z.string().optional(),
+  search: z.string().optional(),
+  limit: z.coerce.number().int().positive().default(50)
+});
+export type AgentCatalogQuery = z.infer<typeof AgentCatalogQuerySchema>;
+
+// ============================================================================
 // Policy Decision Enums
 // ============================================================================
 export const PolicyDecisionEnum = z.enum([
@@ -107,6 +151,10 @@ export const AuditActionEnum = z.enum([
   'NEGOTIATION_STARTED',
   'CATALOG_SEARCHED',
   'PRODUCT_SELECTED',
+  'PRODUCT_CREATED',
+  'PRODUCT_UPDATED',
+  'INVENTORY_UPDATED',
+  'PRICE_UPDATED',
   'OFFER_PROPOSED',
   'OFFER_CALCULATED',
   'POLICY_EVALUATED',
