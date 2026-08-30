@@ -1,9 +1,11 @@
 import fastify, { type FastifyInstance, type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
+import fastifyJwt from '@fastify/jwt';
 import { randomUUID } from 'node:crypto';
 import { env } from './config/env.js';
 import { loggerConfig } from './infrastructure/logger/index.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
 
 export function buildApp(): FastifyInstance {
   const app = fastify({
@@ -16,6 +18,11 @@ export function buildApp(): FastifyInstance {
     origin: env.CORS_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+  });
+
+  // Register JWT Plugin
+  app.register(fastifyJwt, {
+    secret: env.JWT_SECRET
   });
 
   // Global Error Handler
@@ -56,6 +63,7 @@ export function buildApp(): FastifyInstance {
 
   // Register Routes
   app.register(healthRoutes);
+  app.register(authRoutes, { prefix: '/api/auth' });
 
   return app;
 }

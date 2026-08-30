@@ -7,6 +7,56 @@ export const MerchantRoleEnum = z.enum(['OWNER', 'ADMIN', 'STAFF']);
 export type MerchantRole = z.infer<typeof MerchantRoleEnum>;
 
 // ============================================================================
+// Authentication & User Schemas
+// ============================================================================
+export const RegisterInputSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters long'),
+  name: z.string().min(2, 'Name must be at least 2 characters long'),
+  merchantName: z.string().min(2, 'Merchant business name is required'),
+  merchantSlug: z
+    .string()
+    .min(2, 'Merchant slug is required')
+    .regex(/^[a-z0-9-]+$/, 'Slug must only contain lowercase alphanumeric characters and hyphens'),
+  currency: z.string().default('INR')
+});
+export type RegisterInput = z.infer<typeof RegisterInputSchema>;
+
+export const LoginInputSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required')
+});
+export type LoginInput = z.infer<typeof LoginInputSchema>;
+
+export const AuthTokenPayloadSchema = z.object({
+  userId: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string(),
+  merchantId: z.string().uuid(),
+  merchantSlug: z.string(),
+  role: MerchantRoleEnum
+});
+export type AuthTokenPayload = z.infer<typeof AuthTokenPayloadSchema>;
+
+export const AuthResponseSchema = z.object({
+  success: z.boolean(),
+  token: z.string(),
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string()
+  }),
+  merchant: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    currency: z.string(),
+    role: MerchantRoleEnum
+  })
+});
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
+// ============================================================================
 // Policy Decision Enums
 // ============================================================================
 export const PolicyDecisionEnum = z.enum([
