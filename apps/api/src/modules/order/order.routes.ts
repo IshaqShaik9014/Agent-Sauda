@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
   CreateOrderFromOfferInputSchema,
+  StartFulfillmentInputSchema,
+  FulfillOrderInputSchema,
   CancelOrderInputSchema,
   ListOrdersQuerySchema
 } from './order.schema.js';
@@ -63,6 +65,47 @@ const OrderResponseSchema = {
         id: { type: 'string' },
         name: { type: 'string' },
         slug: { type: 'string' },
+        currency: { type: 'string' }
+      }
+    },
+    createdAt: { type: 'string' },
+    updatedAt: { type: 'string' }
+  }
+};
+
+const OrderTimelineEventSchema = {
+  type: 'object',
+  properties: {
+    step: { type: 'string' },
+    title: { type: 'string' },
+    description: { type: 'string' },
+    timestamp: { type: 'string', nullable: true },
+    completed: { type: 'boolean' }
+  }
+};
+
+const OrderTrackingResponseSchema = {
+  type: 'object',
+  properties: {
+    orderId: { type: 'string' },
+    orderNumber: { type: 'string' },
+    status: { type: 'string' },
+    totalAmount: { type: 'number' },
+    currency: { type: 'string' },
+    notes: { type: 'string', nullable: true },
+    timeline: {
+      type: 'array',
+      items: OrderTimelineEventSchema
+    },
+    items: {
+      type: 'array',
+      items: OrderItemResponseSchema
+    },
+    merchant: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
         currency: { type: 'string' }
       }
     },
@@ -202,8 +245,60 @@ export const orderRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  /**
+   * GET /api/orders/:orderId/track
+   * Public buyer real-time order tracking timeline
+   */
+  fastify.get(
+    '/orders/:orderId/track',
+    {
+      schema: {
+        tags: ['Public Buyer Checkout'],
+        summary: 'Track Order Delivery Timeline',
+        description: 'Retrieves chronological milestone progress from agreement to delivery.',
+        params: {
+          type: 'object',
+          required: ['orderId'],
+          properties: {
+            orderId: { type: 'string', format: 'uuid' }
+          }
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              tracking: OrderTrackingResponseSchema
+            }
+          },
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const { orderId } = request.params as { orderId: string };
+      try {
+        const tracking = await orderService.getOrderTrackingTimeline(orderId);
+        return reply.status(200).send({ success: true, tracking });
+      } catch (err: unknown) {
+        const error = err as Error & { statusCode?: number; code?: string };
+        const statusCode = (error.statusCode || 500) as 404 | 500;
+        return reply.status(statusCode).send({
+          success: false,
+          error: {
+            code: error.code || 'TRACKING_FETCH_FAILED',
+            message: error.message,
+            statusCode,
+            requestId: request.id
+          }
+        });
+      }
+    }
+  );
+
   // ==========================================================================
-  // Merchant Order Management Endpoints
+  // Merchant Order Management & Fulfillment Endpoints
   // ==========================================================================
 
   /**
@@ -301,7 +396,7 @@ export const orderRoutes: FastifyPluginAsync = async (fastify) => {
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
-          required: ['merchantId'],
+          required: ['merchantId', 'orderId'],
           properties: {
             merchantId: { type: 'string', format: 'uuid' },
             orderId: { type: 'string', format: 'uuid' }
@@ -333,6 +428,148 @@ export const orderRoutes: FastifyPluginAsync = async (fastify) => {
           success: false,
           error: {
             code: error.code || 'ORDER_FETCH_FAILED',
+            message: error.message,
+            statusCode,
+            requestId: request.id
+          }
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/merchants/:merchantId/orders/:orderId/start-fulfillment
+   * Mark order as FULFILLMENT_PENDING (warehouse packing started)
+   */
+  fastify.post(
+    '/merchants/:merchantId/orders/:orderId/start-fulfillment',
+    {
+      preHandler: [authenticate, requireMerchantAccess()],
+      schema: {
+        tags: ['Merchant Order Management'],
+        summary: 'Start Order Fulfillment / Packaging',
+        description: 'Transitions PAID order to FULFILLMENT_PENDING.',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['merchantId', 'orderId'],
+          properties: {
+            merchantId: { type: 'string', format: 'uuid' },
+            orderId: { type: 'string', format: 'uuid' }
+          }
+        },
+        body: {
+          type: 'object',
+          properties: {
+            notes: { type: 'string', example: 'Packaging started in Sector 7 warehouse' }
+          }
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              order: OrderResponseSchema
+            }
+          },
+          400: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const { merchantId, orderId } = request.params as { merchantId: string; orderId: string };
+      const parseResult = StartFulfillmentInputSchema.safeParse(request.body || {});
+
+      try {
+        const order = await orderService.startFulfillment(
+          orderId,
+          merchantId,
+          request.user.userId,
+          parseResult.success ? parseResult.data : {}
+        );
+        return reply.status(200).send({ success: true, order });
+      } catch (err: unknown) {
+        const error = err as Error & { statusCode?: number; code?: string };
+        const statusCode = (error.statusCode || 500) as 400 | 403 | 404 | 500;
+        return reply.status(statusCode).send({
+          success: false,
+          error: {
+            code: error.code || 'FULFILLMENT_START_FAILED',
+            message: error.message,
+            statusCode,
+            requestId: request.id
+          }
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/merchants/:merchantId/orders/:orderId/fulfill
+   * Complete order fulfillment and record shipment tracking details (COMPLETED)
+   */
+  fastify.post(
+    '/merchants/:merchantId/orders/:orderId/fulfill',
+    {
+      preHandler: [authenticate, requireMerchantAccess()],
+      schema: {
+        tags: ['Merchant Order Management'],
+        summary: 'Complete Order Fulfillment & Ship',
+        description: 'Marks order as COMPLETED with optional courier tracking information.',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['merchantId', 'orderId'],
+          properties: {
+            merchantId: { type: 'string', format: 'uuid' },
+            orderId: { type: 'string', format: 'uuid' }
+          }
+        },
+        body: {
+          type: 'object',
+          properties: {
+            trackingNumber: { type: 'string', example: 'BLUEDART-987654321' },
+            carrier: { type: 'string', example: 'BlueDart Express' },
+            notes: { type: 'string', example: 'Dispatched via priority air cargo' }
+          }
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              order: OrderResponseSchema
+            }
+          },
+          400: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const { merchantId, orderId } = request.params as { merchantId: string; orderId: string };
+      const parseResult = FulfillOrderInputSchema.safeParse(request.body || {});
+
+      try {
+        const order = await orderService.completeFulfillment(
+          orderId,
+          merchantId,
+          request.user.userId,
+          parseResult.success ? parseResult.data : {}
+        );
+        return reply.status(200).send({ success: true, order });
+      } catch (err: unknown) {
+        const error = err as Error & { statusCode?: number; code?: string };
+        const statusCode = (error.statusCode || 500) as 400 | 403 | 404 | 500;
+        return reply.status(statusCode).send({
+          success: false,
+          error: {
+            code: error.code || 'FULFILLMENT_COMPLETE_FAILED',
             message: error.message,
             statusCode,
             requestId: request.id

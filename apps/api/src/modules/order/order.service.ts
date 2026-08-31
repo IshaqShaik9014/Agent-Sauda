@@ -2,9 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { prisma } from '@agent-sauda/database';
 import type {
   CreateOrderFromOfferInput,
+  StartFulfillmentInput,
+  FulfillOrderInput,
   CancelOrderInput,
   OrderResponse,
   OrderItemResponse,
+  OrderTrackingResponse,
+  OrderTimelineEvent,
   ListOrdersQuery,
   OrderStatus
 } from '@agent-sauda/domain';
@@ -216,6 +220,220 @@ export class OrderService {
   }
 
   /**
+   * Starts fulfillment workflow for a paid order (PAID -> FULFILLMENT_PENDING).
+   */
+  async startFulfillment(
+    orderId: string,
+    merchantId: string,
+    actorId: string | undefined,
+    input: StartFulfillmentInput
+  ): Promise<OrderResponse> {
+    const order = await this.getOrderById(orderId, merchantId);
+
+    if (order.status !== 'PAID') {
+      const error = new Error(
+        `Cannot start fulfillment for order in "${order.status}" status. Only PAID orders can be processed.`
+      ) as Error & { statusCode?: number; code?: string };
+      error.statusCode = 400;
+      error.code = 'INVALID_ORDER_STATE';
+      throw error;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'FULFILLMENT_PENDING',
+          notes: input.notes ? `${order.notes || ''} | Packaging: ${input.notes}`.trim() : order.notes
+        },
+        include: {
+          items: true,
+          merchant: true
+        }
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          merchantId,
+          entityType: 'ORDER',
+          entityId: orderId,
+          action: 'ORDER_UPDATED',
+          actorType: actorId ? 'USER' : 'SYSTEM',
+          actorId: actorId || 'store-staff',
+          reason: `Fulfillment started for Order ${order.orderNumber}`
+        }
+      });
+
+      return updatedOrder;
+    });
+
+    return this.formatOrderResponse(updated);
+  }
+
+  /**
+   * Completes order fulfillment and adds shipping tracking metadata (FULFILLMENT_PENDING -> COMPLETED).
+   */
+  async completeFulfillment(
+    orderId: string,
+    merchantId: string,
+    actorId: string | undefined,
+    input: FulfillOrderInput
+  ): Promise<OrderResponse> {
+    const order = await this.getOrderById(orderId, merchantId);
+
+    if (order.status !== 'PAID' && order.status !== 'FULFILLMENT_PENDING') {
+      const error = new Error(
+        `Cannot complete fulfillment for order in "${order.status}" status.`
+      ) as Error & { statusCode?: number; code?: string };
+      error.statusCode = 400;
+      error.code = 'INVALID_ORDER_STATE';
+      throw error;
+    }
+
+    const shippingInfo = [
+      input.carrier ? `Carrier: ${input.carrier}` : null,
+      input.trackingNumber ? `Tracking: ${input.trackingNumber}` : null,
+      input.notes ? `Notes: ${input.notes}` : null
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'COMPLETED',
+          notes: shippingInfo ? `${order.notes || ''} | Shipped: ${shippingInfo}`.trim() : order.notes
+        },
+        include: {
+          items: true,
+          merchant: true
+        }
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          merchantId,
+          entityType: 'ORDER',
+          entityId: orderId,
+          action: 'ORDER_COMPLETED',
+          actorType: actorId ? 'USER' : 'SYSTEM',
+          actorId: actorId || 'store-staff',
+          reason: `Order ${order.orderNumber} fulfilled and marked COMPLETED (${shippingInfo || 'Dispatched'})`
+        }
+      });
+
+      return updatedOrder;
+    });
+
+    return this.formatOrderResponse(updated);
+  }
+
+  /**
+   * Generates a public real-time order tracking timeline.
+   */
+  async getOrderTrackingTimeline(orderId: string): Promise<OrderTrackingResponse> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: true,
+        merchant: true,
+        payments: true
+      }
+    });
+
+    if (!order) {
+      const error = new Error(`Order ${orderId} not found.`) as Error & { statusCode?: number; code?: string };
+      error.statusCode = 404;
+      error.code = 'ORDER_NOT_FOUND';
+      throw error;
+    }
+
+    const isPaid = order.status === 'PAID' || order.status === 'FULFILLMENT_PENDING' || order.status === 'COMPLETED';
+    const isProcessing = order.status === 'FULFILLMENT_PENDING' || order.status === 'COMPLETED';
+    const isCompleted = order.status === 'COMPLETED';
+    const isCancelled = order.status === 'CANCELLED';
+
+    const timeline: OrderTimelineEvent[] = [
+      {
+        step: 'OFFER_ACCEPTED',
+        title: 'Commercial Agreement Finalized',
+        description: 'Quotation confirmed with agreed negotiated pricing.',
+        timestamp: order.createdAt,
+        completed: true
+      },
+      {
+        step: 'ORDER_CREATED',
+        title: 'Order Placed & Stock Reserved',
+        description: `Order ${order.orderNumber} created with reserved warehouse inventory.`,
+        timestamp: order.createdAt,
+        completed: true
+      },
+      {
+        step: 'PAYMENT_CAPTURED',
+        title: isPaid ? 'Payment Captured' : isCancelled ? 'Payment Cancelled' : 'Awaiting Payment',
+        description: isPaid
+          ? 'Payment successfully verified via Razorpay.'
+          : isCancelled
+          ? 'Order was cancelled before payment completion.'
+          : 'Pending buyer payment completion.',
+        timestamp: isPaid ? order.updatedAt : null,
+        completed: isPaid
+      },
+      {
+        step: 'FULFILLMENT_PROCESSING',
+        title: 'Warehouse Processing & Packing',
+        description: isProcessing
+          ? 'Items verified and prepared for courier dispatch.'
+          : 'Waiting for packaging initiation.',
+        timestamp: isProcessing ? order.updatedAt : null,
+        completed: isProcessing
+      },
+      {
+        step: 'ORDER_COMPLETED',
+        title: isCompleted ? 'Order Delivered / Completed' : 'Out for Delivery',
+        description: isCompleted
+          ? 'Order dispatched and delivered successfully.'
+          : 'Awaiting shipping handover.',
+        timestamp: isCompleted ? order.updatedAt : null,
+        completed: isCompleted
+      }
+    ];
+
+    const items: OrderItemResponse[] = (order.items || []).map((item: any) => ({
+      id: item.id,
+      orderId: item.orderId,
+      productId: item.productId,
+      variantId: item.variantId,
+      title: item.title,
+      sku: item.sku,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      agreedPrice: item.agreedPrice,
+      costPrice: item.costPrice,
+      total: item.total
+    }));
+
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status as OrderStatus,
+      totalAmount: order.totalAmount,
+      currency: order.currency,
+      notes: order.notes,
+      timeline,
+      items,
+      merchant: {
+        id: order.merchant.id,
+        name: order.merchant.name,
+        currency: order.merchant.currency
+      },
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    };
+  }
+
+  /**
    * Cancels an order and atomically releases reserved stock back to available warehouse inventory.
    */
   async cancelOrder(
@@ -257,7 +475,7 @@ export class OrderService {
       throw error;
     }
 
-    if (order.status === 'PAID' || order.status === 'COMPLETED') {
+    if (order.status === 'PAID' || order.status === 'COMPLETED' || order.status === 'FULFILLMENT_PENDING') {
       const error = new Error(`Cannot cancel order in "${order.status}" status without issuing a refund.`) as Error & {
         statusCode?: number;
         code?: string;

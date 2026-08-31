@@ -387,7 +387,7 @@ export const ListApprovalsQuerySchema = z.object({
 export type ListApprovalsQuery = z.infer<typeof ListApprovalsQuerySchema>;
 
 // ============================================================================
-// Order Creation & Inventory Reservation Schemas
+// Order Creation, Fulfillment & Tracking Schemas
 // ============================================================================
 export const OrderStatusEnum = z.enum([
   'NEGOTIATING',
@@ -414,6 +414,18 @@ export const CreateOrderFromOfferInputSchema = z.object({
   notes: z.string().optional()
 });
 export type CreateOrderFromOfferInput = z.infer<typeof CreateOrderFromOfferInputSchema>;
+
+export const StartFulfillmentInputSchema = z.object({
+  notes: z.string().optional()
+});
+export type StartFulfillmentInput = z.infer<typeof StartFulfillmentInputSchema>;
+
+export const FulfillOrderInputSchema = z.object({
+  trackingNumber: z.string().optional(),
+  carrier: z.string().optional(),
+  notes: z.string().optional()
+});
+export type FulfillOrderInput = z.infer<typeof FulfillOrderInputSchema>;
 
 export const CancelOrderInputSchema = z.object({
   reason: z.string().default('Order cancelled by user')
@@ -461,6 +473,34 @@ export const OrderResponseSchema = z.object({
   updatedAt: z.date().or(z.string())
 });
 export type OrderResponse = z.infer<typeof OrderResponseSchema>;
+
+export const OrderTimelineEventSchema = z.object({
+  step: z.string(),
+  title: z.string(),
+  description: z.string(),
+  timestamp: z.date().or(z.string()).nullable().optional(),
+  completed: z.boolean()
+});
+export type OrderTimelineEvent = z.infer<typeof OrderTimelineEventSchema>;
+
+export const OrderTrackingResponseSchema = z.object({
+  orderId: z.string().uuid(),
+  orderNumber: z.string(),
+  status: OrderStatusEnum,
+  totalAmount: z.number(),
+  currency: z.string(),
+  notes: z.string().nullable().optional(),
+  timeline: z.array(OrderTimelineEventSchema),
+  items: z.array(OrderItemResponseSchema),
+  merchant: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    currency: z.string()
+  }),
+  createdAt: z.date().or(z.string()),
+  updatedAt: z.date().or(z.string())
+});
+export type OrderTrackingResponse = z.infer<typeof OrderTrackingResponseSchema>;
 
 export const ListOrdersQuerySchema = z.object({
   status: OrderStatusEnum.optional(),
