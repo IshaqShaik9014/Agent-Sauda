@@ -1,5 +1,6 @@
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
+import { warmupDatabase } from '@agent-sauda/database';
 
 async function start() {
   const app = buildApp();
@@ -21,6 +22,11 @@ async function start() {
   }
 
   try {
+    // Warm up Neon Serverless PostgreSQL instance to guarantee zero cold-start failures
+    app.log.info('Connecting to database and warming up Neon compute...');
+    await warmupDatabase(5, 2000);
+    app.log.info('✅ Database connection established.');
+
     const address = await app.listen({
       port: env.PORT,
       host: env.HOST
