@@ -387,7 +387,7 @@ export const ListApprovalsQuerySchema = z.object({
 export type ListApprovalsQuery = z.infer<typeof ListApprovalsQuerySchema>;
 
 // ============================================================================
-// Order State Machine
+// Order Creation & Inventory Reservation Schemas
 // ============================================================================
 export const OrderStatusEnum = z.enum([
   'NEGOTIATING',
@@ -406,6 +406,68 @@ export const OrderStatusEnum = z.enum([
   'CANCELLED'
 ]);
 export type OrderStatus = z.infer<typeof OrderStatusEnum>;
+
+export const CreateOrderFromOfferInputSchema = z.object({
+  offerId: z.string().uuid('Valid offer UUID is required'),
+  buyerId: z.string().uuid().optional(),
+  buyerSessionId: z.string().optional(),
+  notes: z.string().optional()
+});
+export type CreateOrderFromOfferInput = z.infer<typeof CreateOrderFromOfferInputSchema>;
+
+export const CancelOrderInputSchema = z.object({
+  reason: z.string().default('Order cancelled by user')
+});
+export type CancelOrderInput = z.infer<typeof CancelOrderInputSchema>;
+
+export const OrderItemResponseSchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  productId: z.string().uuid(),
+  variantId: z.string().uuid().nullable().optional(),
+  title: z.string(),
+  sku: z.string().nullable().optional(),
+  quantity: z.number(),
+  unitPrice: z.number(),
+  agreedPrice: z.number(),
+  costPrice: z.number().optional(),
+  total: z.number()
+});
+export type OrderItemResponse = z.infer<typeof OrderItemResponseSchema>;
+
+export const OrderResponseSchema = z.object({
+  id: z.string().uuid(),
+  merchantId: z.string().uuid(),
+  buyerId: z.string().uuid().nullable().optional(),
+  offerId: z.string().uuid().nullable().optional(),
+  orderNumber: z.string(),
+  status: OrderStatusEnum,
+  subtotal: z.number(),
+  discountAmount: z.number(),
+  taxAmount: z.number(),
+  totalAmount: z.number(),
+  currency: z.string(),
+  notes: z.string().nullable().optional(),
+  items: z.array(OrderItemResponseSchema),
+  merchant: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string(),
+      slug: z.string(),
+      currency: z.string()
+    })
+    .optional(),
+  createdAt: z.date().or(z.string()),
+  updatedAt: z.date().or(z.string())
+});
+export type OrderResponse = z.infer<typeof OrderResponseSchema>;
+
+export const ListOrdersQuerySchema = z.object({
+  status: OrderStatusEnum.optional(),
+  limit: z.coerce.number().int().positive().default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+});
+export type ListOrdersQuery = z.infer<typeof ListOrdersQuerySchema>;
 
 // ============================================================================
 // Payment State Machine
@@ -446,6 +508,7 @@ export const AuditActionEnum = z.enum([
   'OFFER_EXPIRED',
   'ORDER_CREATED',
   'ORDER_UPDATED',
+  'ORDER_CANCELLED',
   'RAZORPAY_ORDER_CREATED',
   'PAYMENT_INITIATED',
   'PAYMENT_FAILED',

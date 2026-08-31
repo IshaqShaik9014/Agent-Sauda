@@ -34,6 +34,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-008 Tool Calling Sales Agent with Fallback Driver]]: Tool-gated negotiation loop and deterministic driver fallback.
 * [[ADR-009 Time-Bound Formal Offers with Expiration]]: Immutable offer creation with lazy 24-hour expiration.
 * [[ADR-010 Human in the Loop Approval Boundaries]]: Locking offers in `DRAFT` and RBAC manager authorization for high-value orders.
+* [[ADR-011 Atomic Inventory Reservation on Order Creation]]: Two-phase stock allocation and release on order cancellation.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -44,13 +45,15 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 6 AI Sales Agent]]: Autonomous sales agent with tool calling (`search_catalog`, `check_inventory`, `propose_offer`).
 * [[Phase 7 Offer Management]]: Formal offer materialization, 24h expiration, and buyer checkout endpoints.
 * [[Phase 8 Human in the Loop Approvals]]: Merchant approval queues, timeout auto-rejections, and manager actions.
-* [[Phase 9 Order Creation and Validation]]: Atomic order creation, inventory reservation, and price freeze *(Next)*.
+* [[Phase 9 Order Creation and Validation]]: Atomic order creation, two-phase inventory reservation, and cancellation stock release.
+* [[Phase 10 Razorpay Payments]]: Razorpay order creation, payment link generation, and amount validation *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
 * [[AI Tool Calling Loop]]: How conversational turns trigger backend tool executions.
 * [[Offer Lifecycle State Machine]]: The journey of formal quotes from `ACTIVE` to `ACCEPTED`, `EXPIRED`, or `REJECTED`.
 * [[HITL Approval Queue]]: The manager workflow for authorizing high-value commercial quotations.
+* [[Inventory Reservation Engine]]: Two-phase stock allocation (`availableUnits` vs `reservedUnits`).
 * [[Order State Machine]]: Explicit state lifecycle from `NEGOTIATING` to `PAID` / `COMPLETED`.
 * [[Payment State Machine]]: Tracking raw Razorpay transaction attempts, signatures, and webhooks.
 * [[Tenant Isolation]]: Preventing cross-merchant data leakage at the query layer.
