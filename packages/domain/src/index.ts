@@ -470,7 +470,7 @@ export const ListOrdersQuerySchema = z.object({
 export type ListOrdersQuery = z.infer<typeof ListOrdersQuerySchema>;
 
 // ============================================================================
-// Payment State Machine
+// Payment State Machine & Razorpay Schemas
 // ============================================================================
 export const PaymentStatusEnum = z.enum([
   'PENDING',
@@ -480,6 +480,59 @@ export const PaymentStatusEnum = z.enum([
   'REFUNDED'
 ]);
 export type PaymentStatus = z.infer<typeof PaymentStatusEnum>;
+
+export const InitiatePaymentInputSchema = z.object({
+  buyerName: z.string().optional(),
+  buyerEmail: z.string().email().optional(),
+  buyerPhone: z.string().optional(),
+  notes: z.string().optional()
+});
+export type InitiatePaymentInput = z.infer<typeof InitiatePaymentInputSchema>;
+
+export const RazorpayCheckoutPayloadSchema = z.object({
+  keyId: z.string(),
+  razorpayOrderId: z.string(),
+  amountInPaise: z.number().int().positive(),
+  amountInRupees: z.number().positive(),
+  currency: z.string(),
+  orderId: z.string().uuid(),
+  orderNumber: z.string(),
+  merchantName: z.string(),
+  prefill: z
+    .object({
+      name: z.string().optional(),
+      email: z.string().optional(),
+      contact: z.string().optional()
+    })
+    .optional()
+});
+export type RazorpayCheckoutPayload = z.infer<typeof RazorpayCheckoutPayloadSchema>;
+
+export const PaymentResponseSchema = z.object({
+  id: z.string().uuid(),
+  merchantId: z.string().uuid(),
+  orderId: z.string().uuid(),
+  razorpayOrderId: z.string(),
+  razorpayPaymentId: z.string().nullable().optional(),
+  amount: z.number(),
+  currency: z.string(),
+  status: PaymentStatusEnum,
+  attempts: z.number(),
+  errorCode: z.string().nullable().optional(),
+  errorDescription: z.string().nullable().optional(),
+  checkoutPayload: RazorpayCheckoutPayloadSchema.optional(),
+  createdAt: z.date().or(z.string()),
+  updatedAt: z.date().or(z.string())
+});
+export type PaymentResponse = z.infer<typeof PaymentResponseSchema>;
+
+export const ListPaymentsQuerySchema = z.object({
+  status: PaymentStatusEnum.optional(),
+  orderId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().positive().default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+});
+export type ListPaymentsQuery = z.infer<typeof ListPaymentsQuerySchema>;
 
 // ============================================================================
 // Audit Event Types
