@@ -38,6 +38,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-012 Decoupled Payment State Machine and Mockable Driver]]: Razorpay integration with integer paise precision and test drivers.
 * [[ADR-013 Webhook Idempotency and Cryptographic Verification]]: HMAC SHA256 signatures, database idempotency, and permanent stock deduction.
 * [[ADR-014 Post-Payment Order Fulfillment Pipeline]]: Warehouse packaging and shipment tracking timeline.
+* [[ADR-015 Immutable Audit Trail and Forensic Compliance Engine]]: Multi-entity timeline reconstruction and CSV/JSON reporting.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -52,7 +53,8 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 10 Razorpay Payments]]: Razorpay order creation, paise subunit precision, and checkout payloads.
 * [[Phase 11 Razorpay Webhooks]]: Webhook idempotency, HMAC signature verification, and payment capture.
 * [[Phase 12 Order Lifecycle Transitions]]: Post-payment fulfillment, delivery tracking, and completion.
-* [[Phase 13 Audit Trail and Compliance Engine]]: Immutable audit trail, compliance queries, and regulatory reporting *(Next)*.
+* [[Phase 13 Audit Trail and Compliance Engine]]: Immutable audit trail, compliance queries, and regulatory reporting.
+* [[Phase 14 Merchant Analytics Engine]]: Negotiation metrics, conversion funnels, and discount analytics *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
@@ -63,6 +65,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Razorpay Payment Flow]]: Client-server-gateway interaction with integer paise precision.
 * [[Webhook Processing and Idempotency]]: Cryptographic webhook ingestion and replay attack prevention.
 * [[Order Fulfillment Lifecycle]]: Tracking physical warehouse fulfillment and delivery milestones.
+* [[Audit Trail and Compliance Engine]]: Append-only provenance and forensic reconstruction across subsystems.
 * [[Order State Machine]]: Explicit state lifecycle from `NEGOTIATING` to `PAID` / `COMPLETED`.
 * [[Payment State Machine]]: Tracking raw Razorpay transaction attempts, signatures, and webhooks.
 * [[Tenant Isolation]]: Preventing cross-merchant data leakage at the query layer.

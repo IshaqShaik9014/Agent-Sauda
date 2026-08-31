@@ -6,6 +6,9 @@ import { z } from 'zod';
 export const MerchantRoleEnum = z.enum(['OWNER', 'ADMIN', 'STAFF']);
 export type MerchantRole = z.infer<typeof MerchantRoleEnum>;
 
+export const ActorTypeEnum = z.enum(['USER', 'SYSTEM', 'AI_AGENT', 'WEBHOOK']);
+export type ActorType = z.infer<typeof ActorTypeEnum>;
+
 // ============================================================================
 // Authentication & User Schemas
 // ============================================================================
@@ -612,7 +615,7 @@ export const ListWebhooksQuerySchema = z.object({
 export type ListWebhooksQuery = z.infer<typeof ListWebhooksQuerySchema>;
 
 // ============================================================================
-// Audit Event Types
+// Audit Trail & Compliance Logging Schemas
 // ============================================================================
 export const AuditActionEnum = z.enum([
   'NEGOTIATION_STARTED',
@@ -649,6 +652,50 @@ export const AuditActionEnum = z.enum([
   'ORDER_COMPLETED'
 ]);
 export type AuditAction = z.infer<typeof AuditActionEnum>;
+
+export const AuditEventResponseSchema = z.object({
+  id: z.string().uuid(),
+  merchantId: z.string().uuid(),
+  entityType: z.string(),
+  entityId: z.string(),
+  action: z.string(),
+  actorType: ActorTypeEnum,
+  actorId: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  metadata: z.record(z.unknown()).nullable().optional(),
+  createdAt: z.date().or(z.string())
+});
+export type AuditEventResponse = z.infer<typeof AuditEventResponseSchema>;
+
+export const ListAuditEventsQuerySchema = z.object({
+  entityType: z.string().optional(),
+  entityId: z.string().optional(),
+  action: z.string().optional(),
+  actorType: ActorTypeEnum.optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  limit: z.coerce.number().int().positive().default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+});
+export type ListAuditEventsQuery = z.infer<typeof ListAuditEventsQuerySchema>;
+
+export const AuditExportQuerySchema = z.object({
+  format: z.enum(['json', 'csv']).default('json'),
+  entityType: z.string().optional(),
+  action: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional()
+});
+export type AuditExportQuery = z.infer<typeof AuditExportQuerySchema>;
+
+export const ForensicTimelineResponseSchema = z.object({
+  entityType: z.string(),
+  entityId: z.string(),
+  merchantId: z.string().uuid(),
+  totalEvents: z.number(),
+  timeline: z.array(AuditEventResponseSchema)
+});
+export type ForensicTimelineResponse = z.infer<typeof ForensicTimelineResponseSchema>;
 
 // ============================================================================
 // Health Status Schema
