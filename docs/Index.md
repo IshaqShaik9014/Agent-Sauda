@@ -36,6 +36,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-010 Human in the Loop Approval Boundaries]]: Locking offers in `DRAFT` and RBAC manager authorization for high-value orders.
 * [[ADR-011 Atomic Inventory Reservation on Order Creation]]: Two-phase stock allocation and release on order cancellation.
 * [[ADR-012 Decoupled Payment State Machine and Mockable Driver]]: Razorpay integration with integer paise precision and test drivers.
+* [[ADR-013 Webhook Idempotency and Cryptographic Verification]]: HMAC SHA256 signatures, database idempotency, and permanent stock deduction.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -48,7 +49,8 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 8 Human in the Loop Approvals]]: Merchant approval queues, timeout auto-rejections, and manager actions.
 * [[Phase 9 Order Creation and Validation]]: Atomic order creation, two-phase inventory reservation, and cancellation stock release.
 * [[Phase 10 Razorpay Payments]]: Razorpay order creation, paise subunit precision, and checkout payloads.
-* [[Phase 11 Razorpay Webhooks]]: Webhook idempotency, HMAC signature verification, and payment capture *(Next)*.
+* [[Phase 11 Razorpay Webhooks]]: Webhook idempotency, HMAC signature verification, and payment capture.
+* [[Phase 12 Order Lifecycle Transitions]]: Post-payment fulfillment, delivery tracking, and completion *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
@@ -57,6 +59,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[HITL Approval Queue]]: The manager workflow for authorizing high-value commercial quotations.
 * [[Inventory Reservation Engine]]: Two-phase stock allocation (`availableUnits` vs `reservedUnits`).
 * [[Razorpay Payment Flow]]: Client-server-gateway interaction with integer paise precision.
+* [[Webhook Processing and Idempotency]]: Cryptographic webhook ingestion and replay attack prevention.
 * [[Order State Machine]]: Explicit state lifecycle from `NEGOTIATING` to `PAID` / `COMPLETED`.
 * [[Payment State Machine]]: Tracking raw Razorpay transaction attempts, signatures, and webhooks.
 * [[Tenant Isolation]]: Preventing cross-merchant data leakage at the query layer.

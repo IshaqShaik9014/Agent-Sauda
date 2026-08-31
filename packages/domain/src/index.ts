@@ -535,6 +535,43 @@ export const ListPaymentsQuerySchema = z.object({
 export type ListPaymentsQuery = z.infer<typeof ListPaymentsQuerySchema>;
 
 // ============================================================================
+// Webhooks & Payment Signature Verification Schemas
+// ============================================================================
+export const WebhookStatusEnum = z.enum([
+  'PENDING',
+  'PROCESSED',
+  'FAILED',
+  'IGNORED'
+]);
+export type WebhookStatus = z.infer<typeof WebhookStatusEnum>;
+
+export const VerifyPaymentInputSchema = z.object({
+  orderId: z.string().uuid('Valid order UUID is required'),
+  razorpayOrderId: z.string().min(1, 'Razorpay order ID is required'),
+  razorpayPaymentId: z.string().min(1, 'Razorpay payment ID is required'),
+  razorpaySignature: z.string().min(1, 'Razorpay signature is required')
+});
+export type VerifyPaymentInput = z.infer<typeof VerifyPaymentInputSchema>;
+
+export const WebhookEventResponseSchema = z.object({
+  id: z.string().uuid(),
+  eventId: z.string(),
+  eventType: z.string(),
+  status: WebhookStatusEnum,
+  processingError: z.string().nullable().optional(),
+  receivedAt: z.date().or(z.string()),
+  processedAt: z.date().or(z.string()).nullable().optional()
+});
+export type WebhookEventResponse = z.infer<typeof WebhookEventResponseSchema>;
+
+export const ListWebhooksQuerySchema = z.object({
+  status: WebhookStatusEnum.optional(),
+  limit: z.coerce.number().int().positive().default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+});
+export type ListWebhooksQuery = z.infer<typeof ListWebhooksQuerySchema>;
+
+// ============================================================================
 // Audit Event Types
 // ============================================================================
 export const AuditActionEnum = z.enum([
