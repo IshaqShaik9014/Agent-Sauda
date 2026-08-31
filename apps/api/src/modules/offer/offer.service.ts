@@ -134,6 +134,8 @@ export class OfferService {
     const expiresAt = new Date(Date.now() + expirationHours * 3600 * 1000);
     const offerNumber = `OFF-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
 
+    const initialStatus = (evaluation.decision === 'APPROVAL_REQUIRED' || input.forceDraft) ? 'DRAFT' : 'ACTIVE';
+
     // 5. Persist Offer and Items in Transaction
     const offer = await prisma.$transaction(async (tx) => {
       const createdOffer = await tx.offer.create({
@@ -149,7 +151,7 @@ export class OfferService {
           marginPercent,
           policyDecision: evaluation.decision,
           policyReason: evaluation.reasons.join('; ') || 'Approved by merchant policy engine',
-          status: 'ACTIVE',
+          status: initialStatus,
           expiresAt,
           items: {
             create: offerItemsData
@@ -163,6 +165,31 @@ export class OfferService {
         }
       });
 
+      // If approval required, create pending Approval record
+      if (evaluation.decision === 'APPROVAL_REQUIRED') {
+        await tx.approval.create({
+          data: {
+            merchantId,
+            offerId: createdOffer.id,
+            requestedById: actorId || null,
+            status: 'PENDING',
+            requestReason: evaluation.reasons.join('; ') || 'Order exceeds merchant autonomous spending limit'
+          }
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            merchantId,
+            entityType: 'APPROVAL',
+            entityId: createdOffer.id,
+            action: 'APPROVAL_REQUESTED',
+            actorType: actorId ? 'USER' : 'SYSTEM',
+            actorId: actorId || 'system',
+            reason: `Approval requested for high-value Offer ${offerNumber} (₹${totalAmount.toLocaleString('en-IN')})`
+          }
+        });
+      }
+
       // Audit Event
       await tx.auditEvent.create({
         data: {
@@ -172,12 +199,13 @@ export class OfferService {
           action: 'OFFER_CREATED',
           actorType: actorId ? 'USER' : 'AGENT',
           actorId: actorId || 'sales-agent',
-          reason: `Offer ${offerNumber} created for ₹${totalAmount.toLocaleString('en-IN')}`,
+          reason: `Offer ${offerNumber} created for ₹${totalAmount.toLocaleString('en-IN')} (Status: ${initialStatus})`,
           metadata: {
             offerNumber,
             totalAmount,
             discountPercent,
             decision: evaluation.decision,
+            status: initialStatus,
             expiresAt: expiresAt.toISOString()
           }
         }

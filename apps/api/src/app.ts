@@ -12,6 +12,7 @@ import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { policyRoutes } from './modules/policy/policy.routes.js';
 import { agentRoutes } from './modules/agent/agent.routes.js';
 import { offerRoutes } from './modules/offer/offer.routes.js';
+import { approvalRoutes } from './modules/approval/approval.routes.js';
 
 export function buildApp(): FastifyInstance {
   const app = fastify({
@@ -123,6 +124,7 @@ export function buildApp(): FastifyInstance {
   app.register(policyRoutes, { prefix: '/api' });
   app.register(agentRoutes, { prefix: '/api' });
   app.register(offerRoutes, { prefix: '/api' });
+  app.register(approvalRoutes, { prefix: '/api' });
 
   return app;
 }

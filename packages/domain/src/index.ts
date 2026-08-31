@@ -266,7 +266,8 @@ export const CreateOfferInputSchema = z.object({
   conversationId: z.string().uuid().optional(),
   items: z.array(CreateOfferItemInputSchema).min(1, 'At least one item is required in the offer'),
   expirationHours: z.number().int().positive().default(24),
-  customerTier: z.string().optional()
+  customerTier: z.string().optional(),
+  forceDraft: z.boolean().default(false)
 });
 export type CreateOfferInput = z.infer<typeof CreateOfferInputSchema>;
 
@@ -332,6 +333,58 @@ export const ListOffersQuerySchema = z.object({
   offset: z.coerce.number().int().nonnegative().default(0)
 });
 export type ListOffersQuery = z.infer<typeof ListOffersQuerySchema>;
+
+// ============================================================================
+// Human-in-the-Loop (HITL) Approval Schemas
+// ============================================================================
+export const ApprovalStatusEnum = z.enum([
+  'PENDING',
+  'APPROVED',
+  'REJECTED',
+  'TIMED_OUT'
+]);
+export type ApprovalStatus = z.infer<typeof ApprovalStatusEnum>;
+
+export const CreateApprovalInputSchema = z.object({
+  offerId: z.string().uuid('Valid offer UUID is required'),
+  requestReason: z.string().min(3, 'Reason must be at least 3 characters long')
+});
+export type CreateApprovalInput = z.infer<typeof CreateApprovalInputSchema>;
+
+export const ReviewApprovalInputSchema = z.object({
+  resolutionNotes: z.string().optional()
+});
+export type ReviewApprovalInput = z.infer<typeof ReviewApprovalInputSchema>;
+
+export const ApprovalResponseSchema = z.object({
+  id: z.string().uuid(),
+  merchantId: z.string().uuid(),
+  offerId: z.string().uuid(),
+  requestedById: z.string().nullable().optional(),
+  approvedById: z.string().nullable().optional(),
+  status: ApprovalStatusEnum,
+  requestReason: z.string(),
+  resolutionNotes: z.string().nullable().optional(),
+  requestedAt: z.date().or(z.string()),
+  resolvedAt: z.date().or(z.string()).nullable().optional(),
+  offer: OfferResponseSchema.optional(),
+  approvedBy: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string(),
+      email: z.string()
+    })
+    .nullable()
+    .optional()
+});
+export type ApprovalResponse = z.infer<typeof ApprovalResponseSchema>;
+
+export const ListApprovalsQuerySchema = z.object({
+  status: ApprovalStatusEnum.optional(),
+  limit: z.coerce.number().int().positive().default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+});
+export type ListApprovalsQuery = z.infer<typeof ListApprovalsQuerySchema>;
 
 // ============================================================================
 // Order State Machine
