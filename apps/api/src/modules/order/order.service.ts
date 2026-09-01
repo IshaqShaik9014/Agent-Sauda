@@ -185,7 +185,7 @@ export class OrderService {
       });
 
       return createdOrder;
-    });
+    }, { maxWait: 10000, timeout: 20000 });
 
     return this.formatOrderResponse(order);
   }
@@ -544,7 +544,7 @@ export class OrderService {
       });
 
       return updated;
-    });
+    }, { maxWait: 10000, timeout: 20000 });
 
     return this.formatOrderResponse(cancelledOrder);
   }

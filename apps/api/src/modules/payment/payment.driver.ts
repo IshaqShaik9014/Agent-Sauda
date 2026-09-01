@@ -66,7 +66,12 @@ export class MockPaymentDriver implements IPaymentDriver {
       .update(`${razorpayOrderId}|${razorpayPaymentId}`)
       .digest('hex');
 
-    return signature === expectedSignature || signature.startsWith('mock_sig_');
+    return (
+      signature === expectedSignature ||
+      signature.startsWith('mock_sig_') ||
+      signature.startsWith('sig_mock_') ||
+      signature.startsWith('valid_mock_')
+    );
   }
 
   getKeyId(): string {

@@ -41,6 +41,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-015 Immutable Audit Trail and Forensic Compliance Engine]]: Multi-entity timeline reconstruction and CSV/JSON reporting.
 * [[ADR-016 Merchant Commercial Analytics and Negotiation Intelligence]]: Realized profit formulas, AI win rate metrics, and dashboard API.
 * [[ADR-017 Public Buyer Conversational Negotiation UI]]: Dynamic Next.js 15 negotiation storefront, interactive quote cards, and catalog drawer.
+* [[ADR-018 Public Buyer Checkout and Real-Time Tracking]]: Two-column checkout review, Razorpay simulation modal, and 5-milestone delivery timeline.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -58,9 +59,11 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 13 Audit Trail and Compliance Engine]]: Immutable audit trail, compliance queries, and regulatory reporting.
 * [[Phase 14 Merchant Analytics Engine]]: Negotiation metrics, conversion funnels, and discount analytics.
 * [[Phase 15 Public Buyer Chat UI]]: Real-time buyer negotiation and conversational storefront interface.
-* [[Phase 16 Public Buyer Checkout and Payment UI]]: Razorpay checkout modal, order summary, and delivery tracking *(Next)*.
+* [[Phase 16 Buyer Checkout UI]]: Razorpay checkout modal, order review, and 5-milestone live delivery tracking.
+* [[Phase 17 Merchant Admin Dashboard]]: Merchant portal for catalog, policies, HITL approvals, orders, and analytics *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
+* [[Buyer Checkout and Payment Flow]]: Real-time quotation review, Razorpay execution, and 5-milestone delivery timeline.
 * [[Buyer Negotiation Interface]]: Real-time conversational shopping stream with interactive quote widgets.
 * [[Merchant Analytics and KPI Engine]]: Multi-dimensional commercial KPIs, AI negotiation metrics, and bestseller ranking.
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
