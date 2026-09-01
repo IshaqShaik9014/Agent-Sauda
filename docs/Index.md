@@ -40,6 +40,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-014 Post-Payment Order Fulfillment Pipeline]]: Warehouse packaging and shipment tracking timeline.
 * [[ADR-015 Immutable Audit Trail and Forensic Compliance Engine]]: Multi-entity timeline reconstruction and CSV/JSON reporting.
 * [[ADR-016 Merchant Commercial Analytics and Negotiation Intelligence]]: Realized profit formulas, AI win rate metrics, and dashboard API.
+* [[ADR-017 Public Buyer Conversational Negotiation UI]]: Dynamic Next.js 15 negotiation storefront, interactive quote cards, and catalog drawer.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -56,9 +57,11 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 12 Order Lifecycle Transitions]]: Post-payment fulfillment, delivery tracking, and completion.
 * [[Phase 13 Audit Trail and Compliance Engine]]: Immutable audit trail, compliance queries, and regulatory reporting.
 * [[Phase 14 Merchant Analytics Engine]]: Negotiation metrics, conversion funnels, and discount analytics.
-* [[Phase 15 Public Buyer Chat UI]]: Real-time buyer negotiation and conversational interface *(Next)*.
+* [[Phase 15 Public Buyer Chat UI]]: Real-time buyer negotiation and conversational storefront interface.
+* [[Phase 16 Public Buyer Checkout and Payment UI]]: Razorpay checkout modal, order summary, and delivery tracking *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
+* [[Buyer Negotiation Interface]]: Real-time conversational shopping stream with interactive quote widgets.
 * [[Merchant Analytics and KPI Engine]]: Multi-dimensional commercial KPIs, AI negotiation metrics, and bestseller ranking.
 * [[Deterministic Policy Engine]]: Pure mathematical functions vs LLM hallucinations.
 * [[AI Tool Calling Loop]]: How conversational turns trigger backend tool executions.
