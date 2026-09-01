@@ -17,6 +17,7 @@ import { orderRoutes } from './modules/order/order.routes.js';
 import { paymentRoutes } from './modules/payment/payment.routes.js';
 import { webhookRoutes } from './modules/webhook/webhook.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
+import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 
 export function buildApp(): FastifyInstance {
   const app = fastify({
@@ -133,6 +134,7 @@ export function buildApp(): FastifyInstance {
   app.register(paymentRoutes, { prefix: '/api' });
   app.register(webhookRoutes, { prefix: '/api' });
   app.register(auditRoutes, { prefix: '/api' });
+  app.register(analyticsRoutes, { prefix: '/api' });
 
   return app;
 }

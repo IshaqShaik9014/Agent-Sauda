@@ -698,6 +698,74 @@ export const ForensicTimelineResponseSchema = z.object({
 export type ForensicTimelineResponse = z.infer<typeof ForensicTimelineResponseSchema>;
 
 // ============================================================================
+// Merchant Analytics & Negotiation Performance Schemas
+// ============================================================================
+export const AnalyticsDateRangeQuerySchema = z.object({
+  startDate: z.string().optional(),
+  endDate: z.string().optional()
+});
+export type AnalyticsDateRangeQuery = z.infer<typeof AnalyticsDateRangeQuerySchema>;
+
+export const CommercialKPIOverviewResponseSchema = z.object({
+  grossRevenue: z.number(),
+  netGrossProfit: z.number(),
+  averageMarginPercent: z.number(),
+  totalOrdersCount: z.number(),
+  paidOrdersCount: z.number(),
+  completedOrdersCount: z.number(),
+  averageOrderValue: z.number(),
+  currency: z.string()
+});
+export type CommercialKPIOverviewResponse = z.infer<typeof CommercialKPIOverviewResponseSchema>;
+
+export const NegotiationAnalyticsResponseSchema = z.object({
+  totalOffersProposed: z.number(),
+  acceptedOffersCount: z.number(),
+  rejectedOffersCount: z.number(),
+  expiredOffersCount: z.number(),
+  draftApprovalsCount: z.number(),
+  negotiationWinRatePercent: z.number(),
+  averageDiscountPercent: z.number(),
+  totalDiscountsGiven: z.number()
+});
+export type NegotiationAnalyticsResponse = z.infer<typeof NegotiationAnalyticsResponseSchema>;
+
+export const ApprovalPerformanceResponseSchema = z.object({
+  totalApprovalsRequested: z.number(),
+  approvedCount: z.number(),
+  rejectedCount: z.number(),
+  pendingCount: z.number(),
+  timedOutCount: z.number(),
+  approvalRatePercent: z.number(),
+  averageResolutionTimeMinutes: z.number()
+});
+export type ApprovalPerformanceResponse = z.infer<typeof ApprovalPerformanceResponseSchema>;
+
+export const TopProductPerformanceSchema = z.object({
+  productId: z.string().uuid(),
+  title: z.string(),
+  sku: z.string().nullable().optional(),
+  unitsSold: z.number(),
+  totalRevenue: z.number(),
+  averageAgreedPrice: z.number()
+});
+export type TopProductPerformance = z.infer<typeof TopProductPerformanceSchema>;
+
+export const CompleteAnalyticsDashboardResponseSchema = z.object({
+  merchantId: z.string().uuid(),
+  currency: z.string(),
+  period: z.object({
+    startDate: z.string().nullable().optional(),
+    endDate: z.string().nullable().optional()
+  }),
+  commercialKPIs: CommercialKPIOverviewResponseSchema,
+  negotiationAnalytics: NegotiationAnalyticsResponseSchema,
+  approvalPerformance: ApprovalPerformanceResponseSchema,
+  topProducts: z.array(TopProductPerformanceSchema)
+});
+export type CompleteAnalyticsDashboardResponse = z.infer<typeof CompleteAnalyticsDashboardResponseSchema>;
+
+// ============================================================================
 // Health Status Schema
 // ============================================================================
 export const HealthResponseSchema = z.object({
