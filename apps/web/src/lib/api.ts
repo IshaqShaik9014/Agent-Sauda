@@ -1,3 +1,4 @@
+import { auth } from './auth';
 import type {
   ChatInput,
   ChatResponse,
@@ -5,7 +6,11 @@ import type {
   OrderResponse,
   OrderTrackingResponse,
   PaymentResponse,
-  VerifyPaymentInput
+  VerifyPaymentInput,
+  CompleteAnalyticsDashboardResponse,
+  RegisterInput,
+  LoginInput,
+  AuthResponse
 } from '@agent-sauda/domain';
 
 const API_BASE_URL =
@@ -27,6 +32,59 @@ export interface PublicCatalogProduct {
   };
 }
 
+export interface AdminProduct {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  category: string;
+  basePrice: number;
+  costPrice: number;
+  isActive: boolean;
+  inventory?: {
+    availableUnits: number;
+    reservedUnits: number;
+    location?: string;
+  };
+}
+
+export interface AdminPolicy {
+  id: string;
+  maxDiscountPercent: number;
+  minimumMarginPercent: number;
+  autonomousOrderLimit: number;
+  approvalThreshold: number;
+  maxQuantityPerOrder: number;
+  rules: any;
+  isActive: boolean;
+}
+
+export interface PendingApproval {
+  id: string;
+  offerId: string;
+  offerNumber: string;
+  totalAmount: number;
+  marginPercent: number;
+  discountPercent: number;
+  requestedBy: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  createdAt: string;
+  offer?: OfferResponse;
+}
+
+export interface AuditEventItem {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  actorType: string;
+  actorId: string;
+  reason?: string;
+  metadata?: any;
+  createdAt: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -36,9 +94,12 @@ class ApiClient {
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const headers = {
+    const token = auth.getToken();
+
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers as Record<string, string>)
     };
 
     try {
@@ -56,9 +117,28 @@ class ApiClient {
     }
   }
 
-  /**
-   * Fetch public redacted catalog for a merchant
-   */
+  // ==========================================================================
+  // Auth Endpoints
+  // ==========================================================================
+
+  async register(input: RegisterInput): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  }
+
+  async login(input: LoginInput): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  }
+
+  // ==========================================================================
+  // Public Buyer & Negotiation Endpoints
+  // ==========================================================================
+
   async getAgentCatalog(params: {
     merchantSlug?: string;
     merchantId?: string;
@@ -76,9 +156,6 @@ class ApiClient {
     );
   }
 
-  /**
-   * Send negotiation message to AI sales agent
-   */
   async sendChatMessage(input: ChatInput): Promise<ChatResponse> {
     return this.request<ChatResponse>('/api/agent/chat', {
       method: 'POST',
@@ -86,16 +163,10 @@ class ApiClient {
     });
   }
 
-  /**
-   * Get public details of a formal quote / offer
-   */
   async getOffer(offerId: string): Promise<{ success: boolean; offer: OfferResponse }> {
     return this.request<{ success: boolean; offer: OfferResponse }>(`/api/offers/${offerId}`);
   }
 
-  /**
-   * Buyer accepts formal offer
-   */
   async acceptOffer(offerId: string): Promise<{ success: boolean; offer: OfferResponse }> {
     return this.request<{ success: boolean; offer: OfferResponse }>(`/api/offers/${offerId}/accept`, {
       method: 'POST',
@@ -103,9 +174,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Buyer rejects formal offer
-   */
   async rejectOffer(offerId: string, reason?: string): Promise<{ success: boolean; offer: OfferResponse }> {
     return this.request<{ success: boolean; offer: OfferResponse }>(`/api/offers/${offerId}/reject`, {
       method: 'POST',
@@ -113,9 +181,6 @@ class ApiClient {
     });
   }
 
-  /**
-   * Convert accepted offer into Order with atomic stock reservation
-   */
   async createOrderFromOffer(input: {
     offerId: string;
     notes?: string;
@@ -126,23 +191,14 @@ class ApiClient {
     });
   }
 
-  /**
-   * Get public checkout order summary
-   */
   async getOrder(orderId: string): Promise<{ success: boolean; order: OrderResponse }> {
     return this.request<{ success: boolean; order: OrderResponse }>(`/api/orders/${orderId}`);
   }
 
-  /**
-   * Track order delivery timeline
-   */
   async trackOrder(orderId: string): Promise<{ success: boolean; tracking: OrderTrackingResponse }> {
     return this.request<{ success: boolean; tracking: OrderTrackingResponse }>(`/api/orders/${orderId}/track`);
   }
 
-  /**
-   * Initiate Razorpay payment in integer Paise
-   */
   async initiatePayment(orderId: string): Promise<{ success: boolean; payment: PaymentResponse }> {
     return this.request<{ success: boolean; payment: PaymentResponse }>(`/api/orders/${orderId}/pay`, {
       method: 'POST',
@@ -150,22 +206,191 @@ class ApiClient {
     });
   }
 
-  /**
-   * Verify client checkout signature
-   */
   async verifyPayment(input: VerifyPaymentInput): Promise<{
     success: boolean;
-    order: { id: string; orderNumber: string; status: string; totalAmount: number; currency: string };
-    payment: { id: string; status: string; amount: number; razorpayPaymentId: string };
+    orderId: string;
+    paymentId: string;
   }> {
     return this.request<{
       success: boolean;
-      order: { id: string; orderNumber: string; status: string; totalAmount: number; currency: string };
-      payment: { id: string; status: string; amount: number; razorpayPaymentId: string };
+      orderId: string;
+      paymentId: string;
     }>('/api/payments/verify', {
       method: 'POST',
       body: JSON.stringify(input)
     });
+  }
+
+  // ==========================================================================
+  // Merchant Admin Endpoints
+  // ==========================================================================
+
+  async getCompleteAnalytics(
+    merchantId: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<{ success: boolean; dashboard: CompleteAnalyticsDashboardResponse }> {
+    const searchParams = new URLSearchParams();
+    if (startDate) searchParams.append('startDate', startDate);
+    if (endDate) searchParams.append('endDate', endDate);
+
+    return this.request<{ success: boolean; dashboard: CompleteAnalyticsDashboardResponse }>(
+      `/api/merchants/${merchantId}/analytics/dashboard?${searchParams.toString()}`
+    );
+  }
+
+  async getMerchantCatalog(merchantId: string): Promise<{ success: boolean; products: AdminProduct[] }> {
+    return this.request<{ success: boolean; products: AdminProduct[] }>(
+      `/api/merchants/${merchantId}/catalog/products`
+    );
+  }
+
+  async createProduct(
+    merchantId: string,
+    input: {
+      title: string;
+      slug: string;
+      description?: string;
+      category: string;
+      basePrice: number;
+      costPrice: number;
+      initialStock?: number;
+      location?: string;
+    }
+  ): Promise<{ success: boolean; product: AdminProduct }> {
+    return this.request<{ success: boolean; product: AdminProduct }>(
+      `/api/merchants/${merchantId}/catalog/products`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input)
+      }
+    );
+  }
+
+  async updateInventory(
+    merchantId: string,
+    productId: string,
+    input: {
+      availableUnits: number;
+      reservedUnits?: number;
+      location?: string;
+    }
+  ): Promise<{ success: boolean; inventory: any }> {
+    return this.request<{ success: boolean; inventory: any }>(
+      `/api/merchants/${merchantId}/catalog/inventory/${productId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(input)
+      }
+    );
+  }
+
+  async getMerchantPolicy(merchantId: string): Promise<{ success: boolean; policy: AdminPolicy }> {
+    return this.request<{ success: boolean; policy: AdminPolicy }>(`/api/merchants/${merchantId}/policy`);
+  }
+
+  async updateMerchantPolicy(
+    merchantId: string,
+    input: Partial<AdminPolicy>
+  ): Promise<{ success: boolean; policy: AdminPolicy }> {
+    return this.request<{ success: boolean; policy: AdminPolicy }>(
+      `/api/merchants/${merchantId}/policy`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(input)
+      }
+    );
+  }
+
+  async getPendingApprovals(
+    merchantId: string
+  ): Promise<{ success: boolean; approvals: PendingApproval[]; count: number }> {
+    return this.request<{ success: boolean; approvals: PendingApproval[]; count: number }>(
+      `/api/merchants/${merchantId}/approvals?status=PENDING`
+    );
+  }
+
+  async approveOffer(
+    merchantId: string,
+    approvalId: string,
+    notes?: string
+  ): Promise<{ success: boolean; approval: any }> {
+    return this.request<{ success: boolean; approval: any }>(
+      `/api/merchants/${merchantId}/approvals/${approvalId}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notes: notes || 'Approved by merchant manager in dashboard' })
+      }
+    );
+  }
+
+  async rejectApproval(
+    merchantId: string,
+    approvalId: string,
+    reason: string
+  ): Promise<{ success: boolean; approval: any }> {
+    return this.request<{ success: boolean; approval: any }>(
+      `/api/merchants/${merchantId}/approvals/${approvalId}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      }
+    );
+  }
+
+  async getMerchantOrders(
+    merchantId: string,
+    status?: string
+  ): Promise<{ success: boolean; orders: OrderResponse[] }> {
+    const searchParams = new URLSearchParams();
+    if (status) searchParams.append('status', status);
+
+    return this.request<{ success: boolean; orders: OrderResponse[] }>(
+      `/api/merchants/${merchantId}/orders?${searchParams.toString()}`
+    );
+  }
+
+  async startFulfillment(
+    merchantId: string,
+    orderId: string,
+    notes?: string
+  ): Promise<{ success: boolean; order: OrderResponse }> {
+    return this.request<{ success: boolean; order: OrderResponse }>(
+      `/api/merchants/${merchantId}/orders/${orderId}/start-fulfillment`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notes: notes || 'Warehouse packing started' })
+      }
+    );
+  }
+
+  async fulfillOrder(
+    merchantId: string,
+    orderId: string,
+    carrier: string,
+    trackingNumber: string
+  ): Promise<{ success: boolean; order: OrderResponse }> {
+    return this.request<{ success: boolean; order: OrderResponse }>(
+      `/api/merchants/${merchantId}/orders/${orderId}/fulfill`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ carrier, trackingNumber })
+      }
+    );
+  }
+
+  async getAuditTrail(
+    merchantId: string,
+    params: { entityType?: string; action?: string; limit?: number } = {}
+  ): Promise<{ success: boolean; events: AuditEventItem[] }> {
+    const searchParams = new URLSearchParams();
+    if (params.entityType) searchParams.append('entityType', params.entityType);
+    if (params.action) searchParams.append('action', params.action);
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+
+    return this.request<{ success: boolean; events: AuditEventItem[] }>(
+      `/api/merchants/${merchantId}/audit?${searchParams.toString()}`
+    );
   }
 }
 

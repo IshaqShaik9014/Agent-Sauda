@@ -42,6 +42,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-016 Merchant Commercial Analytics and Negotiation Intelligence]]: Realized profit formulas, AI win rate metrics, and dashboard API.
 * [[ADR-017 Public Buyer Conversational Negotiation UI]]: Dynamic Next.js 15 negotiation storefront, interactive quote cards, and catalog drawer.
 * [[ADR-018 Public Buyer Checkout and Real-Time Tracking]]: Two-column checkout review, Razorpay simulation modal, and 5-milestone delivery timeline.
+* [[ADR-019 Merchant Control Portal and Management Architecture]]: Full merchant dashboard, policy sliders, HITL approvals queue, orders dispatch, and forensic audit log.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -60,9 +61,11 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 14 Merchant Analytics Engine]]: Negotiation metrics, conversion funnels, and discount analytics.
 * [[Phase 15 Public Buyer Chat UI]]: Real-time buyer negotiation and conversational storefront interface.
 * [[Phase 16 Buyer Checkout UI]]: Razorpay checkout modal, order review, and 5-milestone live delivery tracking.
-* [[Phase 17 Merchant Admin Dashboard]]: Merchant portal for catalog, policies, HITL approvals, orders, and analytics *(Next)*.
+* [[Phase 17 Merchant Admin Dashboard]]: Merchant portal for catalog, policies, HITL approvals, orders, and analytics.
+* [[Phase 18 End to End System Integration]]: Comprehensive multi-actor simulation and automated regression suite *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
+* [[Merchant Control Portal]]: Back-office management center for catalog, policy guardrails, approvals, orders, and compliance.
 * [[Buyer Checkout and Payment Flow]]: Real-time quotation review, Razorpay execution, and 5-milestone delivery timeline.
 * [[Buyer Negotiation Interface]]: Real-time conversational shopping stream with interactive quote widgets.
 * [[Merchant Analytics and KPI Engine]]: Multi-dimensional commercial KPIs, AI negotiation metrics, and bestseller ranking.

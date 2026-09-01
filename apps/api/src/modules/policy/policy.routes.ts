@@ -141,7 +141,9 @@ export const policyRoutes: FastifyPluginAsync = async (fastify) => {
                   maxDiscountPercent: { type: 'number' },
                   minimumMarginPercent: { type: 'number' },
                   autonomousOrderLimit: { type: 'number' },
+                  approvalThreshold: { type: 'number', nullable: true },
                   maxQuantityPerOrder: { type: 'number' },
+                  rules: { type: 'object', additionalProperties: true },
                   isActive: { type: 'boolean' }
                 }
               }
