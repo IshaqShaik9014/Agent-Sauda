@@ -137,7 +137,8 @@ export class OfferService {
     const initialStatus = (evaluation.decision === 'APPROVAL_REQUIRED' || input.forceDraft) ? 'DRAFT' : 'ACTIVE';
 
     // 5. Persist Offer and Items in Transaction
-    const offer = await prisma.$transaction(async (tx) => {
+    const offer = await prisma.$transaction(
+      async (tx) => {
       const createdOffer = await tx.offer.create({
         data: {
           merchantId,
@@ -212,7 +213,9 @@ export class OfferService {
       });
 
       return createdOffer;
-    });
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
 
     return this.formatOfferResponse(offer);
   }

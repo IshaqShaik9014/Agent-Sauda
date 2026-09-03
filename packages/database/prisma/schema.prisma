@@ -172,6 +172,7 @@ model Product {
 
   @@unique([merchantId, slug])
   @@index([merchantId, isActive])
+  @@index([merchantId, isActive, category])
   @@map("products")
 }
 
@@ -213,6 +214,7 @@ model Inventory {
 
   @@unique([productId, variantId])
   @@index([merchantId])
+  @@index([productId, availableUnits])
   @@map("inventory")
 }
 
@@ -326,6 +328,7 @@ model Offer {
   orders         Order[]
 
   @@index([merchantId, status])
+  @@index([merchantId, status, createdAt])
   @@index([conversationId])
   @@map("offers")
 }
@@ -401,6 +404,7 @@ model Order {
   payments       Payment[]
 
   @@index([merchantId, status])
+  @@index([merchantId, status, createdAt])
   @@index([orderNumber])
   @@map("orders")
 }
@@ -486,6 +490,7 @@ model AuditEvent {
   merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Restrict)
 
   @@index([merchantId, createdAt])
+  @@index([merchantId, entityType, createdAt])
   @@index([entityType, entityId])
   @@map("audit_events")
 }

@@ -5,6 +5,7 @@ import type {
   UpdateInventoryInput,
   AgentCatalogQuery
 } from './catalog.schema.js';
+import { cacheService, CacheService } from '../../lib/cache.js';
 
 export class CatalogService {
   /**
@@ -27,7 +28,7 @@ export class CatalogService {
       throw error;
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
         data: {
           merchantId,
@@ -81,6 +82,9 @@ export class CatalogService {
         grossMarginPercent
       };
     });
+
+    await cacheService.invalidateMerchantCatalog();
+    return result;
   }
 
   /**
@@ -184,7 +188,7 @@ export class CatalogService {
       (input.basePrice !== undefined && input.basePrice !== current.basePrice) ||
       (input.costPrice !== undefined && input.costPrice !== current.costPrice);
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const updated = await tx.product.update({
         where: { id: productId },
         data: {
@@ -235,6 +239,9 @@ export class CatalogService {
         grossMarginPercent
       };
     });
+
+    await cacheService.invalidateMerchantCatalog();
+    return result;
   }
 
   /**
@@ -256,7 +263,7 @@ export class CatalogService {
       }
     });
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       if (!inventory) {
         inventory = await tx.inventory.create({
           data: {
@@ -298,6 +305,9 @@ export class CatalogService {
 
       return inventory;
     });
+
+    await cacheService.invalidateMerchantCatalog();
+    return result;
   }
 
   /**
@@ -327,7 +337,7 @@ export class CatalogService {
         select: { id: true, name: true, currency: true }
       });
       if (!defaultMerchant) {
-        return { merchant: null, products: [] };
+        return { merchant: null, productsCount: 0, products: [] };
       }
       merchantId = defaultMerchant.id;
     }
@@ -336,6 +346,12 @@ export class CatalogService {
       where: { id: merchantId },
       select: { id: true, name: true, slug: true, currency: true }
     });
+
+    const cacheKey = CacheService.catalogSlugKey(query.merchantSlug || merchantId);
+    if (!query.search && !query.category) {
+      const cached = await cacheService.get<{ merchant: any; productsCount: number; products: any[] }>(cacheKey);
+      if (cached) return cached;
+    }
 
     const whereClause: Record<string, unknown> = {
       merchantId,
@@ -382,11 +398,17 @@ export class CatalogService {
       };
     });
 
-    return {
+    const result = {
       merchant: merchantInfo,
       productsCount: agentItems.length,
       products: agentItems
     };
+
+    if (!query.search && !query.category) {
+      await cacheService.set(cacheKey, result, 120);
+    }
+
+    return result;
   }
 }
 

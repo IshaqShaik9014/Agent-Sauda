@@ -197,7 +197,9 @@ export class WebhookService {
       });
 
       return updated;
-    });
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
 
     return {
       received: true,
@@ -302,7 +304,9 @@ export class WebhookService {
       }
 
       return p;
-    });
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
 
     return {
       success: true,

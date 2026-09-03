@@ -6,35 +6,42 @@ import type {
   OfferEvaluationResult
 } from './policy.schema.js';
 import { evaluateOfferAgainstPolicy, type EvaluatedItemFact } from './policy.engine.js';
+import { cacheService, CacheService } from '../../lib/cache.js';
 
 export class PolicyService {
   /**
-   * Retrieves active policy for a merchant. If none exists, creates the default safe policy.
+   * Retrieves active policy for a merchant with 60s cache. If none exists, creates the default safe policy.
    */
   async getMerchantPolicy(merchantId: string): Promise<PolicyConfig> {
-    let policy = await prisma.policy.findFirst({
-      where: {
-        merchantId,
-        isActive: true
-      }
-    });
+    return await cacheService.getOrSet(
+      CacheService.policyKey(merchantId),
+      60,
+      async () => {
+        let policy = await prisma.policy.findFirst({
+          where: {
+            merchantId,
+            isActive: true
+          }
+        });
 
-    if (!policy) {
-      policy = await prisma.policy.create({
-        data: {
-          merchantId,
-          maxDiscountPercent: 8.0,
-          minimumMarginPercent: 18.0,
-          autonomousOrderLimit: 100000.0,
-          approvalThreshold: 100000.0,
-          maxQuantityPerOrder: 50,
-          rules: {},
-          isActive: true
+        if (!policy) {
+          policy = await prisma.policy.create({
+            data: {
+              merchantId,
+              maxDiscountPercent: 8.0,
+              minimumMarginPercent: 18.0,
+              autonomousOrderLimit: 100000.0,
+              approvalThreshold: 100000.0,
+              maxQuantityPerOrder: 50,
+              rules: {},
+              isActive: true
+            }
+          });
         }
-      });
-    }
 
-    return policy as unknown as PolicyConfig;
+        return policy as unknown as PolicyConfig;
+      }
+    );
   }
 
   /**
@@ -47,7 +54,7 @@ export class PolicyService {
   ): Promise<PolicyConfig> {
     const current = await this.getMerchantPolicy(merchantId);
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1. Snapshot previous policy version
       const versionCount = await tx.policyVersion.count({
         where: { policyId: current.id }
@@ -110,6 +117,9 @@ export class PolicyService {
 
       return updated as unknown as PolicyConfig;
     });
+
+    await cacheService.invalidateMerchantPolicy(merchantId);
+    return result;
   }
 
   /**
