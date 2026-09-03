@@ -37,6 +37,12 @@ export const catalogRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     '/agent/catalog',
     {
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: '1 minute'
+        }
+      },
       schema: {
         tags: ['Agent Tools & Public Catalog'],
         summary: 'Agent-Readable Product Catalog (AI Tool Endpoint)',

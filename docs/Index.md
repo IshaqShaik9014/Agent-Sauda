@@ -45,6 +45,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-019 Merchant Control Portal and Management Architecture]]: Full merchant dashboard, policy sliders, HITL approvals queue, orders dispatch, and forensic audit log.
 * [[ADR-020 End-to-End Multi-Actor System Integration]]: Comprehensive multi-actor simulation, prompt injection defense, and financial reconciliation.
 * [[ADR-021 Pluggable Multi-Tier Caching and Database Index Optimization]]: RedisCacheDriver and MemoryCacheDriver adapter with 60s/120s TTL and composite Prisma indexes.
+* [[ADR-022 Production Security Hardening and Distributed Rate Limiting]]: Helmet HTTP shielding, multi-tier rate limiting (auth, chat, catalog), and XSS input sanitization.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -66,9 +67,11 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 17 Merchant Admin Dashboard]]: Merchant portal for catalog, policies, HITL approvals, orders, and analytics.
 * [[Phase 18 End to End System Integration]]: Comprehensive multi-actor simulation and automated regression suite.
 * [[Phase 19 Performance Optimization]]: Pluggable Redis & Memory caching, composite indexes, and sub-millisecond lookups.
-* [[Phase 20 Security Hardening]]: Rate limiting, brute-force defense, and security middleware *(Next)*.
+* [[Phase 20 Security Hardening]]: Rate limiting, brute-force defense, Helmet shielding, and XSS sanitization.
+* [[Phase 21 Production Docker]]: Multi-stage Docker containerization and deployment orchestrations *(Next)*.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
+* [[Security Hardening and Rate Limiting]]: Perimeter defense, distributed rate limiting, and malicious payload sanitization.
 * [[Performance and Caching Architecture]]: Multi-tier caching topology, Redis vs Memory adapter, and proactive invalidation hooks.
 * [[End-to-End System Integration]]: Multi-actor simulation and end-to-end commerce synchronization.
 * [[Merchant Control Portal]]: Back-office management center for catalog, policy guardrails, approvals, orders, and compliance.

@@ -28,6 +28,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     '/register',
     {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 minute'
+        }
+      },
       schema: {
         tags: ['Authentication & Tenancy'],
         summary: 'Register New Merchant Organization & Owner Account',
@@ -145,6 +151,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     '/login',
     {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 minute'
+        }
+      },
       schema: {
         tags: ['Authentication & Tenancy'],
         summary: 'Merchant User Login',

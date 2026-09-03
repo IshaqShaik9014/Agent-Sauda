@@ -1,5 +1,8 @@
 import fastify, { type FastifyInstance, type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
+import { Redis } from 'ioredis';
 import fastifyJwt from '@fastify/jwt';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
@@ -22,6 +25,7 @@ import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 export function buildApp(): FastifyInstance {
   const app = fastify({
     logger: loggerConfig,
+    trustProxy: true,
     genReqId: (req) => (req.headers['x-request-id'] as string) || randomUUID(),
     ajv: {
       customOptions: {
@@ -30,11 +34,48 @@ export function buildApp(): FastifyInstance {
     }
   });
 
+  // Register Security Headers with Helmet
+  app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'", 'https:']
+      }
+    },
+    crossOriginEmbedderPolicy: false
+  });
+
   // Enable CORS
   app.register(cors, {
     origin: env.CORS_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+  });
+
+  // Register Global Distributed Rate Limiting
+  const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_URL;
+  app.register(rateLimit, {
+    max: 120,
+    timeWindow: '1 minute',
+    cache: 10000,
+    keyGenerator: (req) => (req.headers['x-forwarded-for'] as string) || req.ip,
+    ...(redisUrl
+      ? {
+          redis: new Redis(redisUrl, {
+            lazyConnect: true,
+            maxRetriesPerRequest: 1
+          })
+        }
+      : {}),
+    errorResponseBuilder: (request, context) => ({
+      statusCode: 429,
+      code: 'RATE_LIMIT_EXCEEDED',
+      error: 'Too Many Requests',
+      message: `Too many requests. Limit exceeded: ${context.max} requests per ${context.after}. Please slow down.`
+    })
   });
 
   // Register JWT Plugin
@@ -88,6 +129,28 @@ export function buildApp(): FastifyInstance {
 
   // Global Error Handler
   app.setErrorHandler((error: FastifyError, request, reply) => {
+    const isRateLimit =
+      error.statusCode === 429 ||
+      reply.statusCode === 429 ||
+      (error as any).code === 'FST_ERR_RATE_LIMIT' ||
+      (error as any).code === 'RATE_LIMIT_EXCEEDED' ||
+      (error as any).error === 'Too Many Requests';
+
+    if (isRateLimit) {
+      const message =
+        (error as any).message ||
+        'Too many requests. Limit exceeded. Please slow down.';
+      return reply.status(429).send({
+        success: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message,
+          statusCode: 429,
+          requestId: request.id
+        }
+      });
+    }
+
     request.log.error({
       err: error,
       reqId: request.id,

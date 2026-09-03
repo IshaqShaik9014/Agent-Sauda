@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { ChatInputSchema } from './agent.schema.js';
 import { agentService } from './agent.service.js';
 import { prisma } from '@agent-sauda/database';
+import { sanitizeString } from '../../lib/sanitize.js';
 
 const ErrorResponseSchema = {
   type: 'object',
@@ -80,6 +81,12 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     '/merchants/:merchantId/agent/chat',
     {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute'
+        }
+      },
       schema: {
         tags: ['Agent Tools & Public Catalog'],
         summary: 'Chat with AI Sales Agent (Tool Calling Negotiation Loop)',
@@ -128,6 +135,12 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
+      // XSS Input Sanitization
+      parseResult.data.message = sanitizeString(parseResult.data.message);
+      if (parseResult.data.customerName) {
+        parseResult.data.customerName = sanitizeString(parseResult.data.customerName);
+      }
+
       try {
         const result = await agentService.chat(
           merchantId,
@@ -159,6 +172,12 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     '/agent/chat',
     {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute'
+        }
+      },
       schema: {
         tags: ['Agent Tools & Public Catalog'],
         summary: 'Public Chat with AI Sales Agent',
@@ -238,6 +257,12 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
             requestId: request.id
           }
         });
+      }
+
+      // XSS Input Sanitization
+      parseResult.data.message = sanitizeString(parseResult.data.message);
+      if (parseResult.data.customerName) {
+        parseResult.data.customerName = sanitizeString(parseResult.data.customerName);
       }
 
       try {
