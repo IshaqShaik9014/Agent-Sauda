@@ -42,3 +42,7 @@ Thumbs.db
 
 # Graphfy sidecars & outputs
 graphify-out/
+
+# Internal notes & scripts
+DEMO_VIDEO_SCRIPT.md
+Agent_Sauda_Current_Implementation_Status_Report.md
