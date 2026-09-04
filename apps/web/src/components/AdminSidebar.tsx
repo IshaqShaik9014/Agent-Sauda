@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   ChevronRight,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  Code2
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -48,6 +49,11 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
       name: 'Knowledge & RAG',
       href: '/admin/knowledge',
       icon: BookOpen
+    },
+    {
+      name: 'Connect & SDK',
+      href: '/admin/connect',
+      icon: Code2
     },
     {
       name: 'Policy Guardrails',
