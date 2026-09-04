@@ -113,6 +113,23 @@ export function evaluateOfferAgainstPolicy(
       ? Number((((totalProposedAmount - totalCostAmount) / totalProposedAmount) * 100).toFixed(2))
       : 0;
 
+  // 4.5 Evaluate Discount Approval Tiers (e.g. ≤5% Auto-Allow, 5-10% Manager Approval)
+  const rules = (policy.rules as Record<string, unknown>) || {};
+  const autoApproveDiscountPercent =
+    typeof rules['autoApproveDiscountPercent'] === 'number'
+      ? (rules['autoApproveDiscountPercent'] as number)
+      : policy.maxDiscountPercent;
+
+  const requiresDiscountApproval =
+    totalEffectiveDiscountPercent > autoApproveDiscountPercent &&
+    totalEffectiveDiscountPercent <= policy.maxDiscountPercent;
+
+  if (requiresDiscountApproval) {
+    reasons.push(
+      `Proposed discount of ${totalEffectiveDiscountPercent}% exceeds automatic threshold of ${autoApproveDiscountPercent}%. Requires human manager authorization.`
+    );
+  }
+
   // Decide the final policy outcome
   let decision: PolicyDecision = 'ALLOW';
   let allowed = false;
@@ -126,8 +143,8 @@ export function evaluateOfferAgainstPolicy(
     // Discount or margin breach, but counter-offer is mathematically viable
     decision = 'COUNTER';
     allowed = false;
-  } else if (exceedsAutonomousLimit) {
-    // Unit price is legal, but order volume requires human manager sign-off
+  } else if (exceedsAutonomousLimit || requiresDiscountApproval) {
+    // Unit price is within allowed limits, but discount tier or order volume requires human manager sign-off
     decision = 'APPROVAL_REQUIRED';
     allowed = false;
     requiresApproval = true;

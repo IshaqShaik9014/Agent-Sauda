@@ -63,9 +63,43 @@ export class DeterministicAgentDriver implements IAgentDriver {
       }
     }
 
-    // 2. Extract pricing negotiation / offer proposal intent
+    // 2. Check for Merchant Knowledge / Policy / FAQ questions (RAG)
     const cleanText = userText.replace(/,/g, '');
     const priceMatch = cleanText.match(/(?:for|do|at|offer|give|₹|rs\.?)\s*(\d{3,7})/i);
+
+    const isKnowledgeQuery =
+      userText.includes('return') ||
+      userText.includes('refund') ||
+      userText.includes('assembled') ||
+      userText.includes('assembly') ||
+      userText.includes('warranty') ||
+      userText.includes('guarantee') ||
+      userText.includes('shipping') ||
+      userText.includes('delivery') ||
+      userText.includes('defect') ||
+      userText.includes('damaged') ||
+      userText.includes('policy') ||
+      userText.includes('terms');
+
+    if (isKnowledgeQuery && !userText.includes('₹') && !priceMatch) {
+      const knowledgeResult = (await runTool('search_merchant_knowledge', {
+        query: userText,
+        topK: 2
+      })) as {
+        chunks: Array<{ documentTitle: string; documentType: string; content: string; relevanceScore: number }>;
+      };
+
+      if (knowledgeResult.chunks && knowledgeResult.chunks.length > 0 && knowledgeResult.chunks[0]) {
+        const topChunk = knowledgeResult.chunks[0];
+        return {
+          reply: `According to our official ${topChunk.documentTitle} (${topChunk.documentType.replace('_', ' ')}):\n\n"${topChunk.content}"\n\nPlease let me know if you have any questions about specific items or would like to proceed with a purchase!`,
+          toolCallsExecuted,
+          toolResults
+        };
+      }
+    }
+
+    // 3. Extract pricing negotiation / offer proposal intent
     const quantityMatch =
       cleanText.match(/(\d+)\s*(?:units|items|chairs|desks|pieces|pcs)/i) ||
       cleanText.match(/(?:buy|need|order|want)\s*(\d+)/i);

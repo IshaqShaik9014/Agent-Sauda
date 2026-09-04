@@ -1,3 +1,4 @@
+import dns from 'node:dns';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
@@ -11,6 +12,29 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config();
+
+// Ensure resilient DNS resolution using Google & Cloudflare DNS (fixes local ISP DNS drops)
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+  const origLookup = dns.lookup;
+  (dns as any).lookup = (hostname: string, options: any, callback: any) => {
+    const cb = typeof options === 'function' ? options : callback;
+    const opts = typeof options === 'object' ? options : {};
+    dns.resolve4(hostname, (err, addresses) => {
+      if (!err && addresses && addresses.length > 0) {
+        if (opts.all) {
+          cb(null, addresses.map((addr) => ({ address: addr, family: 4 })));
+        } else {
+          cb(null, addresses[0], 4);
+        }
+      } else {
+        origLookup(hostname, options, callback);
+      }
+    });
+  };
+} catch {
+  // Fallback to default
+}
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -51,10 +75,10 @@ if (process.env.NODE_ENV !== 'production') {
  * Neon Cold-Start Warmup Helper.
  * Attempts a lightweight query with retry backoff to cleanly wake up sleeping serverless instances.
  */
-export async function warmupDatabase(maxRetries = 5, retryDelayMs = 2000): Promise<boolean> {
+export async function warmupDatabase(maxRetries = 8, retryDelayMs = 3500): Promise<boolean> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await prisma.$queryRaw`SELECT 1 as warmup`;
+      await pool.query('SELECT 1 as warmup');
       return true;
     } catch (err: unknown) {
       const isLastAttempt = attempt === maxRetries;

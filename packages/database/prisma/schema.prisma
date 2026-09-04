@@ -8,7 +8,8 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 // ============================================================================
@@ -126,6 +127,8 @@ model Merchant {
   orders         Order[]
   payments       Payment[]
   auditEvents    AuditEvent[]
+  documents      MerchantDocument[]
+  documentChunks MerchantDocumentChunk[]
 
   @@map("merchants")
 }
@@ -494,3 +497,42 @@ model AuditEvent {
   @@index([entityType, entityId])
   @@map("audit_events")
 }
+
+// ============================================================================
+// 8. Merchant Knowledge Base & Unstructured Policy RAG (pgvector)
+// ============================================================================
+
+model MerchantDocument {
+  id           String                  @id @default(uuid())
+  merchantId   String
+  title        String
+  documentType String                  @default("GENERAL") // RETURN_POLICY, WARRANTY, SHIPPING, FAQ, TERMS
+  rawContent   String
+  metadata     Json?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  merchant     Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  chunks       MerchantDocumentChunk[]
+
+  @@index([merchantId, documentType])
+  @@map("merchant_documents")
+}
+
+model MerchantDocumentChunk {
+  id         String           @id @default(uuid())
+  merchantId String
+  documentId String
+  chunkIndex Int
+  content    String
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+
+  merchant   Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  document   MerchantDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([documentId, chunkIndex])
+  @@map("merchant_document_chunks")
+}
+

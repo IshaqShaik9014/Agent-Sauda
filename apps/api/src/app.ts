@@ -21,6 +21,8 @@ import { paymentRoutes } from './modules/payment/payment.routes.js';
 import { webhookRoutes } from './modules/webhook/webhook.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
+import { knowledgeRoutes } from './modules/knowledge/knowledge.routes.js';
+import { commerceRoutes } from './modules/commerce/commerce.routes.js';
 
 export function buildApp(): FastifyInstance {
   const app = fastify({
@@ -70,7 +72,7 @@ export function buildApp(): FastifyInstance {
           })
         }
       : {}),
-    errorResponseBuilder: (request, context) => ({
+    errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       code: 'RATE_LIMIT_EXCEEDED',
       error: 'Too Many Requests',
@@ -198,6 +200,8 @@ export function buildApp(): FastifyInstance {
   app.register(webhookRoutes, { prefix: '/api' });
   app.register(auditRoutes, { prefix: '/api' });
   app.register(analyticsRoutes, { prefix: '/api' });
+  app.register(knowledgeRoutes, { prefix: '/api' });
+  app.register(commerceRoutes, { prefix: '/api' });
 
   return app;
 }

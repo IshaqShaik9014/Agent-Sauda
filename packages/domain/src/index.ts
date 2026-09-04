@@ -776,3 +776,9 @@ export const HealthResponseSchema = z.object({
   environment: z.string()
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
+
+// ============================================================================
+// Agent Sauda B2B SDK Client
+// ============================================================================
+export * from './sdk.js';
+

@@ -15,7 +15,8 @@ import {
   LogOut,
   ShieldCheck,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  BookOpen
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -42,6 +43,11 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
       name: 'Catalog & Stock',
       href: '/admin/catalog',
       icon: Package
+    },
+    {
+      name: 'Knowledge & RAG',
+      href: '/admin/knowledge',
+      icon: BookOpen
     },
     {
       name: 'Policy Guardrails',

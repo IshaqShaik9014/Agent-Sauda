@@ -1,6 +1,7 @@
 import { prisma } from '@agent-sauda/database';
 import { catalogService } from '../catalog/catalog.service.js';
 import { policyService } from '../policy/policy.service.js';
+import { knowledgeService } from '../knowledge/knowledge.service.js';
 import type { AgentToolDeclaration, AgentContext } from './agent.types.js';
 import type { OfferEvaluationResult } from '@agent-sauda/domain';
 
@@ -69,6 +70,24 @@ export const AGENT_TOOLS: AgentToolDeclaration[] = [
         }
       },
       required: ['items']
+    }
+  },
+  {
+    name: 'search_merchant_knowledge',
+    description: 'Searches the merchant unstructured knowledge base and documents (return policy, warranty, shipping, FAQs, terms). Returns semantic document excerpts.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The customer policy or store question (e.g. "return policy after assembly", "warranty period")'
+        },
+        topK: {
+          type: 'number',
+          description: 'Maximum number of knowledge chunks to return (default 3)'
+        }
+      },
+      required: ['query']
     }
   }
 ];
@@ -161,6 +180,24 @@ export class AgentToolExecutor {
           averageGrossMarginPercent: evaluation.averageGrossMarginPercent,
           counterOffer: evaluation.counterOffer,
           reasons: evaluation.reasons
+        };
+      }
+
+      case 'search_merchant_knowledge': {
+        const query = typeof args['query'] === 'string' ? args['query'] : '';
+        const topK = typeof args['topK'] === 'number' ? args['topK'] : 3;
+
+        const chunks = await knowledgeService.searchKnowledge(ctx.merchantId, query, topK);
+        return {
+          query,
+          merchantName: ctx.merchantName,
+          chunksCount: chunks.length,
+          chunks: chunks.map((c) => ({
+            documentTitle: c.documentTitle,
+            documentType: c.documentType,
+            content: c.content,
+            relevanceScore: c.similarityScore
+          }))
         };
       }
 
