@@ -46,6 +46,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-020 End-to-End Multi-Actor System Integration]]: Comprehensive multi-actor simulation, prompt injection defense, and financial reconciliation.
 * [[ADR-021 Pluggable Multi-Tier Caching and Database Index Optimization]]: RedisCacheDriver and MemoryCacheDriver adapter with 60s/120s TTL and composite Prisma indexes.
 * [[ADR-022 Production Security Hardening and Distributed Rate Limiting]]: Helmet HTTP shielding, multi-tier rate limiting (auth, chat, catalog), and XSS input sanitization.
+* [[ADR-023 PostgreSQL pgvector Knowledge RAG and B2B Commerce SDK]]: Neon pgvector document chunking, tenant-isolated cosine similarity, B2B SDK layer, and bounded autonomy.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
