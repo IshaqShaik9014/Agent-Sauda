@@ -1,0 +1,92 @@
+name: agent-sauda
+
+services:
+  # ============================================================================
+  # 1. Distributed In-Memory Cache & Rate Limiting Store
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: agent-sauda-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --save 60 1
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - sauda-net
+
+  # ============================================================================
+  # 2. Fastify REST & Commerce Governance API
+  # ============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: agent-sauda-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - HOST=0.0.0.0
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-sauda_jwt_super_secret_buildathon_key_2026_at_least_32_bytes}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_mock_buildathon_key}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-rzp_test_mock_buildathon_secret}
+      - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-rzp_test_mock_webhook_secret}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - sauda-net
+
+  # ============================================================================
+  # 3. Next.js 15 Standalone Web Storefront & Admin Portal
+  # ============================================================================
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: agent-sauda-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - sauda-net
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  sauda-net:
+    driver: bridge

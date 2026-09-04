@@ -1,0 +1,3 @@
+# Agent Sauda
+User-agent: *
+Allow: /

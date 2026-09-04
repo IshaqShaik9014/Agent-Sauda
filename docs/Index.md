@@ -47,6 +47,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-021 Pluggable Multi-Tier Caching and Database Index Optimization]]: RedisCacheDriver and MemoryCacheDriver adapter with 60s/120s TTL and composite Prisma indexes.
 * [[ADR-022 Production Security Hardening and Distributed Rate Limiting]]: Helmet HTTP shielding, multi-tier rate limiting (auth, chat, catalog), and XSS input sanitization.
 * [[ADR-023 PostgreSQL pgvector Knowledge RAG and B2B Commerce SDK]]: Neon pgvector document chunking, tenant-isolated cosine similarity, B2B SDK layer, and bounded autonomy.
+* [[ADR-024 Production Docker Containerization]]: Multi-stage Docker builds, Next.js 15 standalone optimization (~120MB), non-root users, and Docker Compose orchestration.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -69,7 +70,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 18 End to End System Integration]]: Comprehensive multi-actor simulation and automated regression suite.
 * [[Phase 19 Performance Optimization]]: Pluggable Redis & Memory caching, composite indexes, and sub-millisecond lookups.
 * [[Phase 20 Security Hardening]]: Rate limiting, brute-force defense, Helmet shielding, and XSS sanitization.
-* [[Phase 21 Production Docker]]: Multi-stage Docker containerization and deployment orchestrations *(Next)*.
+* [[Phase 21 Production Docker]]: Multi-stage Docker containerization, Next.js standalone optimization, and Docker Compose orchestration.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Security Hardening and Rate Limiting]]: Perimeter defense, distributed rate limiting, and malicious payload sanitization.
