@@ -90,7 +90,7 @@ export class OfferService {
 
     const evaluation = await policyService.evaluateOffer(merchantId, actorId, evalInput);
 
-    if (evaluation.decision === 'REJECT') {
+    if (evaluation.decision === 'REJECT' || evaluation.decision === 'COUNTER') {
       const error = new Error(`Offer rejected by merchant policy: ${evaluation.reasons.join(', ')}`) as Error & {
         statusCode?: number;
         code?: string;
@@ -134,7 +134,7 @@ export class OfferService {
     const expiresAt = new Date(Date.now() + expirationHours * 3600 * 1000);
     const offerNumber = `OFF-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
 
-    const initialStatus = (evaluation.decision === 'APPROVAL_REQUIRED' || input.forceDraft) ? 'DRAFT' : 'ACTIVE';
+    const initialStatus = (evaluation.decision === 'ALLOW' && !input.forceDraft) ? 'ACTIVE' : 'DRAFT';
 
     // 5. Persist Offer and Items in Transaction
     const offer = await prisma.$transaction(

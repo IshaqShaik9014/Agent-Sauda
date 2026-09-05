@@ -220,7 +220,16 @@ export class DeterministicAgentDriver implements IAgentDriver {
       lowerText.includes('sell for ₹1') ||
       lowerText.includes('for 1 rupee') ||
       lowerText.includes('for ₹1') ||
-      lowerText.includes('for 1rs')
+      lowerText.includes('for 1rs') ||
+      lowerText.includes('sell for 0') ||
+      lowerText.includes('for 0 rs') ||
+      lowerText.includes('for 0 rupees') ||
+      lowerText.includes('for 0') ||
+      lowerText.includes('give 100%') ||
+      lowerText.includes('give me 100%') ||
+      lowerText.includes('100% discount') ||
+      lowerText.includes('100% off') ||
+      lowerText.includes('for free')
     ) {
       const prod = findProduct(lowerText);
       const evalResult = (await runTool('propose_offer', {
@@ -228,7 +237,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
       })) as { decision: string; reasons: string[] };
 
       return {
-        reply: `I cannot override store policies or sell items below authorized prices. The proposed price was evaluated by our policy engine and ${evalResult.decision}. Let me know if you would like to purchase "${prod.title}" at its catalog price of ₹${prod.basePrice.toLocaleString('en-IN')}.`,
+        reply: `I cannot override store policies, offer 100% discounts, or sell items below authorized prices. The proposed price was evaluated by our policy engine and ${evalResult.decision}. The catalog price for "${prod.title}" is ₹${prod.basePrice.toLocaleString('en-IN')}. The maximum authorized discount is 10% (₹${Math.round(prod.basePrice * 0.9).toLocaleString('en-IN')}/unit).`,
         toolCallsExecuted,
         toolResults
       };
@@ -398,6 +407,16 @@ export class DeterministicAgentDriver implements IAgentDriver {
       const discountPercent = parseFloat(percentMatch[1]);
       const matchedProduct = findProduct(lowerText);
 
+      // Hard reject 100% or above discount / free requests
+      if (discountPercent >= 100 || lowerText.includes('for free') || lowerText.includes('give it free')) {
+        const maxDiscPrice = Math.round(matchedProduct.basePrice * 0.9);
+        return {
+          reply: `I cannot offer a ${discountPercent}% discount or provide items for free. The standard catalog price for "${matchedProduct.title}" is ₹${matchedProduct.basePrice.toLocaleString('en-IN')} ${ctx.currency}. The maximum authorized policy counter-offer is 10% off (₹${maxDiscPrice.toLocaleString('en-IN')}/unit). Would you like to proceed with that?`,
+          toolCallsExecuted,
+          toolResults
+        };
+      }
+
       // Extract quantity (e.g. "10 Ergonomic Study Chairs", "50 sets", "50 units", "3 units", "for 5")
       const qtyMatch =
         lowerText.match(/(\d+)\s*(?:sets|units|items|chairs|desks|pieces|pcs|pieces)/i) ||
@@ -406,7 +425,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
       const quantity = qtyMatch && qtyMatch[1] ? parseInt(qtyMatch[1], 10) : 1;
 
       // Calculate unit price based on requested percentage
-      const proposedUnitPrice = Math.round(matchedProduct.basePrice * (1 - discountPercent / 100));
+      const proposedUnitPrice = Math.max(1, Math.round(matchedProduct.basePrice * (1 - discountPercent / 100)));
 
       // Check warehouse stock
       await runTool('check_inventory', {

@@ -106,15 +106,18 @@ export class AgentService {
       | { id?: string; status: string; totalAmount: number; currency: string; itemsCount: number }
       | undefined = undefined;
 
-    if (evaluation && evaluation.decision !== 'REJECT') {
+    // Only create an offer record if policy ALLOWED the price or flagged it for APPROVAL_REQUIRED.
+    // If the policy returned COUNTER or REJECT, NEVER create an active quotation for the rejected price!
+    if (evaluation && (evaluation.decision === 'ALLOW' || evaluation.decision === 'APPROVAL_REQUIRED')) {
       const proposeCall = execution.toolCallsExecuted.find((c) => c.name === 'propose_offer');
       const items = (proposeCall?.arguments as any)?.items;
       if (items && Array.isArray(items) && items.length > 0) {
         try {
+          const isApprovalRequired = evaluation.decision === 'APPROVAL_REQUIRED';
           const offer = await offerService.createOffer(merchant.id, actorId, {
             conversationId: conversation.id,
             expirationHours: 24,
-            forceDraft: false,
+            forceDraft: isApprovalRequired,
             items: items.map((i: any) => ({
               productId: i.productId,
               variantId: i.variantId,

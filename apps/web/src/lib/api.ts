@@ -124,7 +124,7 @@ class ApiClient {
 
       return data as T;
     } catch (err: unknown) {
-      console.error(`[API Error] ${options.method || 'GET'} ${path}:`, err);
+      console.warn(`[API Info] ${options.method || 'GET'} ${path}:`, (err as Error).message);
       throw err;
     }
   }
