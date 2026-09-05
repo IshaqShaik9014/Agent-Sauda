@@ -19,6 +19,7 @@ import {
   BookOpen,
   Code2
 } from 'lucide-react';
+import { AgentSaudaLogo } from './AgentSaudaLogo';
 
 interface AdminSidebarProps {
   merchant: MerchantSession | null;
@@ -78,32 +79,22 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
   ];
 
   return (
-    <aside className="w-64 shrink-0 bg-zinc-950 border-r border-zinc-800/80 flex flex-col justify-between min-h-screen">
+    <aside className="w-64 shrink-0 bg-slate-950 border-r border-slate-800/80 flex flex-col justify-between min-h-screen">
       <div>
         {/* Top Brand Header */}
-        <div className="p-5 border-b border-zinc-800/80">
-          <Link href="/admin" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="text-sm font-extrabold tracking-tight text-zinc-100 block leading-tight">
-                AGENT SAUDA
-              </span>
-              <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
-                Merchant Portal
-              </span>
-            </div>
+        <div className="p-4 border-b border-slate-800/80">
+          <Link href="/admin" className="block">
+            <AgentSaudaLogo size="sm" subtitle="Merchant Control Center" theme="dark" />
           </Link>
 
           {/* Active Store Badge */}
           {merchant && (
-            <div className="mt-4 rounded-xl bg-zinc-900/90 border border-zinc-800 p-2.5 flex items-center justify-between">
+            <div className="mt-3.5 rounded-xl bg-slate-900/90 border border-slate-800 p-2.5 flex items-center justify-between">
               <div className="truncate pr-2">
-                <span className="text-[11px] font-bold text-zinc-200 block truncate">
+                <span className="text-[11px] font-bold text-slate-200 block truncate">
                   {merchant.name}
                 </span>
-                <span className="text-[9px] text-zinc-500 font-mono">
+                <span className="text-[9px] text-slate-400 font-mono">
                   {merchant.currency} &bull; {merchant.role}
                 </span>
               </div>
@@ -111,7 +102,7 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
                 href={`/negotiate/${merchant.slug}`}
                 target="_blank"
                 title="Open Public Storefront"
-                className="p-1 rounded-lg bg-zinc-800 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-700 transition-colors"
+                className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 transition-colors"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </Link>
@@ -131,17 +122,17 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                   isActive
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-semibold'
-                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+                    ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 font-semibold'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-emerald-400' : 'text-zinc-500'}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
                   <span>{item.name}</span>
                 </div>
-                {isActive && <ChevronRight className="h-3.5 w-3.5 text-emerald-400" />}
+                {isActive && <ChevronRight className="h-3.5 w-3.5 text-indigo-400" />}
               </Link>
             );
           })}
@@ -149,10 +140,10 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
       </div>
 
       {/* Footer Profile & Logout */}
-      <div className="p-4 border-t border-zinc-800/80">
+      <div className="p-4 border-t border-slate-800/80">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 py-2 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-red-400 transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-red-400 transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" />
           <span>Sign Out</span>
