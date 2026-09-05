@@ -46,25 +46,25 @@ export default function HomePage() {
 
   const demoStores = [
     {
+      name: 'ABC Furniture Ltd',
+      slug: 'abc-furniture',
+      category: 'Ergonomic Seating & Desks',
+      description: 'Negotiate bulk deals on Ergonomic Study Chairs with live warehouse stock and automated policy checks.',
+      badge: 'Hero Demo'
+    },
+    {
+      name: 'Apex Modern Furniture Co.',
+      slug: 'apex-modern-furniture',
+      category: 'Office & Commercial Furniture',
+      description: 'Negotiate volume quotes for AeroMesh Task Chairs, Executive Desks, and Acoustic Dividers.',
+      badge: 'B2B Wholesale'
+    },
+    {
       name: 'Quantum Dynamics Tech',
       slug: 'quantum-dynamics',
       category: 'Enterprise Hardware',
       description: 'Negotiate enterprise quantum processors, neural accelerators, and server clusters.',
-      badge: 'Hot Demo'
-    },
-    {
-      name: 'Apex Robotics Corp',
-      slug: 'apex-robotics',
-      category: 'Robotics & Automation',
-      description: 'Negotiate volume quotes for industrial automation units and surveillance drones.',
-      badge: 'B2B Wholesale'
-    },
-    {
-      name: 'Omni Consumer Products (OCP)',
-      slug: 'ocp-sauda',
-      category: 'Security & Armor',
-      description: 'Negotiate deals on ED-209 units, ballistic armor plating, and defense gear.',
-      badge: 'High Value Policy'
+      badge: 'Tech Catalog'
     }
   ];
 
@@ -83,14 +83,22 @@ export default function HomePage() {
           &ldquo;AI agents negotiate. Merchants stay in control.&rdquo;
         </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Link
-            href="/negotiate/quantum-dynamics"
+            href="/negotiate/abc-furniture"
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition-all hover:scale-105"
           >
             <MessageSquare className="w-4 h-4" />
             <span>Launch Buyer Negotiation Demo</span>
             <ArrowRight className="w-4 h-4" />
+          </Link>
+
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 border border-zinc-800 px-5 py-3 text-sm font-medium text-zinc-200 hover:bg-zinc-800 hover:border-zinc-700 transition-all"
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Merchant Control Dashboard</span>
           </Link>
 
           <a
@@ -102,6 +110,16 @@ export default function HomePage() {
             <span>Explore Swagger API Docs</span>
             <Sparkles className="w-4 h-4 text-amber-400" />
           </a>
+        </div>
+
+        {/* Hero Architecture Infographic */}
+        <div className="relative w-full max-w-5xl mt-6 rounded-2xl overflow-hidden border border-zinc-800/90 shadow-2xl shadow-emerald-950/40 bg-zinc-950/80 p-2 sm:p-3 backdrop-blur-md group">
+          <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 via-transparent to-indigo-500/5 pointer-events-none rounded-2xl" />
+          <img
+            src="/hero-img.png"
+            alt="Agent Sauda — AI agents negotiate. Merchants stay in control. B2B Commerce Architecture"
+            className="w-full h-auto rounded-xl shadow-lg border border-zinc-800/60"
+          />
         </div>
       </header>
 
