@@ -7,13 +7,11 @@ import {
   CheckSquare,
   CheckCircle2,
   XCircle,
-  Clock,
-  DollarSign,
-  Percent,
   RefreshCw,
   Loader2,
-  AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Package,
+  Layers
 } from 'lucide-react';
 
 export default function AdminApprovalsPage() {
@@ -30,7 +28,8 @@ export default function AdminApprovalsPage() {
     try {
       if (refresh) setIsRefreshing(true);
       const res = await api.getPendingApprovals(activeMerchant.id);
-      setApprovals(res.approvals);
+      setApprovals(res.approvals || []);
+      setError(null);
     } catch (err: unknown) {
       setError((err as Error).message || 'Failed to load approval requests');
     } finally {
@@ -100,6 +99,12 @@ export default function AdminApprovalsPage() {
         </button>
       </div>
 
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-300">
+          ⚠️ {error}
+        </div>
+      )}
+
       {/* Approvals Table */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 shadow-xl overflow-hidden backdrop-blur-sm">
         {isLoading ? (
@@ -117,66 +122,92 @@ export default function AdminApprovalsPage() {
           </div>
         ) : (
           <div className="divide-y divide-zinc-800/60">
-            {approvals.map((appr) => (
-              <div
-                key={appr.id}
-                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-800/20"
-              >
-                <div className="space-y-1.5">
+            {approvals.map((appr) => {
+              const offer = appr.offer;
+              const offerNumber = offer?.offerNumber || appr.offerNumber || 'OFF-PENDING';
+              const totalAmount = offer?.totalAmount ?? appr.totalAmount ?? 0;
+              const discountPercent = offer?.discountPercent ?? appr.discountPercent ?? 0;
+              const marginPercent = offer?.marginPercent ?? appr.marginPercent ?? 0;
+              const reason = appr.requestReason || appr.reason || offer?.policyReason || 'Requires manager authorization';
+              const items = offer?.items || [];
+              const productTitle = items[0]?.productTitle || 'Negotiated Quotation';
+              const quantity = items[0]?.quantity || 1;
+              const agreedPrice = items[0]?.agreedPrice ?? 0;
+
+              return (
+                <div
+                  key={appr.id}
+                  className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-800/20"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-zinc-100">
+                        Offer #{offerNumber}
+                      </span>
+                      <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/20">
+                        NEEDS MANAGER APPROVAL
+                      </span>
+                    </div>
+
+                    {/* Product & Quantity Tag */}
+                    <div className="flex items-center gap-2 text-xs text-zinc-300">
+                      <Package className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="font-medium">
+                        {quantity}x {productTitle}
+                      </span>
+                      {agreedPrice > 0 && (
+                        <span className="text-zinc-400">
+                          (@ ₹{agreedPrice.toLocaleString('en-IN')}/unit)
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+                      <span>
+                        Quote Total: <strong className="text-zinc-100 font-bold">₹{totalAmount.toLocaleString('en-IN')}</strong>
+                      </span>
+                      <span>&bull;</span>
+                      <span>
+                        Discount: <strong className="text-emerald-400 font-mono">{discountPercent}%</strong>
+                      </span>
+                      <span>&bull;</span>
+                      <span>
+                        Gross Margin: <strong className="text-indigo-400 font-mono">{marginPercent}%</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-amber-300 pt-1">
+                      <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                      <span>Reason: {reason}</span>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-zinc-100">
-                      Offer #{appr.offerNumber}
-                    </span>
-                    <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/20">
-                      NEEDS MANAGER APPROVAL
-                    </span>
-                  </div>
+                    <button
+                      onClick={() => handleApprove(appr.id)}
+                      disabled={processingId === appr.id}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20 hover:bg-emerald-400 transition-all disabled:opacity-50"
+                    >
+                      {processingId === appr.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      )}
+                      <span>Authorize Quote</span>
+                    </button>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
-                    <span>
-                      Quote Total: <strong className="text-zinc-100 font-bold">₹{appr.totalAmount.toLocaleString('en-IN')}</strong>
-                    </span>
-                    <span>&bull;</span>
-                    <span>
-                      Discount: <strong className="text-emerald-400 font-mono">{appr.discountPercent}%</strong>
-                    </span>
-                    <span>&bull;</span>
-                    <span>
-                      Gross Margin: <strong className="text-indigo-400 font-mono">{appr.marginPercent}%</strong>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-xs text-amber-300 pt-1">
-                    <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    <span>Reason: {appr.reason}</span>
+                    <button
+                      onClick={() => handleReject(appr.id)}
+                      disabled={processingId === appr.id}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-red-400 transition-colors disabled:opacity-50"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      <span>Decline</span>
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleApprove(appr.id)}
-                    disabled={processingId === appr.id}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20 hover:bg-emerald-400 transition-all disabled:opacity-50"
-                  >
-                    {processingId === appr.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    )}
-                    <span>Authorize Quote</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleReject(appr.id)}
-                    disabled={processingId === appr.id}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-red-400 transition-colors disabled:opacity-50"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    <span>Decline</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -62,15 +62,27 @@ export interface AdminPolicy {
 export interface PendingApproval {
   id: string;
   offerId: string;
-  offerNumber: string;
-  totalAmount: number;
-  marginPercent: number;
-  discountPercent: number;
-  requestedBy: string;
-  reason: string;
+  merchantId?: string;
+  requestedById?: string;
+  approvedById?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
-  createdAt: string;
+  requestReason?: string;
+  resolutionNotes?: string;
+  requestedAt?: string;
+  resolvedAt?: string;
   offer?: OfferResponse;
+  approvedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  offerNumber?: string;
+  totalAmount?: number;
+  marginPercent?: number;
+  discountPercent?: number;
+  requestedBy?: string;
+  reason?: string;
+  createdAt?: string;
 }
 
 export interface AuditEventItem {
