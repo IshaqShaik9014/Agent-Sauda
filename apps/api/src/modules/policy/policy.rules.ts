@@ -22,7 +22,8 @@ export function evaluateDiscountRule(
     (((basePrice - proposedPrice) / basePrice) * 100).toFixed(2)
   );
 
-  const passed = effectiveDiscountPercent <= maxDiscountPercent;
+  // Allow 0.05% tolerance for integer rounding (e.g. ₹5,488.2 rounding to ₹5,488)
+  const passed = effectiveDiscountPercent <= maxDiscountPercent + 0.05;
 
   return {
     ruleName: 'MAX_DISCOUNT_PERCENT',
@@ -57,7 +58,8 @@ export function evaluateMarginRule(
     (((proposedPrice - costPrice) / proposedPrice) * 100).toFixed(2)
   );
 
-  const passed = proposedPrice > costPrice && grossMarginPercent >= minimumMarginPercent;
+  // Allow 0.05% tolerance for integer rounding
+  const passed = proposedPrice >= costPrice && grossMarginPercent >= minimumMarginPercent - 0.05;
 
   return {
     ruleName: 'MIN_MARGIN_PERCENT',

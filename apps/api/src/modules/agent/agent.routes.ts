@@ -69,6 +69,16 @@ const ChatResponseObjectSchema = {
           }
         }
       }
+    },
+    activeOffer: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string' },
+        totalAmount: { type: 'number' },
+        currency: { type: 'string' },
+        itemsCount: { type: 'number' }
+      }
     }
   }
 };

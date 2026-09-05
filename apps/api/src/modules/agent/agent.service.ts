@@ -3,6 +3,7 @@ import type { ChatInput, ChatResponse, ChatMessage, OfferEvaluationResult } from
 import type { AgentContext } from './agent.types.js';
 import { buildSystemPrompt } from './agent.prompts.js';
 import { getAgentDriver } from './agent.driver.js';
+import { offerService } from '../offer/offer.service.js';
 
 export class AgentService {
   /**
@@ -101,12 +102,47 @@ export class AgentService {
     const proposeOfferResult = execution.toolResults.find((r) => r.toolName === 'propose_offer');
     const evaluation = proposeOfferResult ? (proposeOfferResult.result as OfferEvaluationResult) : undefined;
 
+    let activeOfferData:
+      | { id?: string; status: string; totalAmount: number; currency: string; itemsCount: number }
+      | undefined = undefined;
+
+    if (evaluation && evaluation.decision !== 'REJECT') {
+      const proposeCall = execution.toolCallsExecuted.find((c) => c.name === 'propose_offer');
+      const items = (proposeCall?.arguments as any)?.items;
+      if (items && Array.isArray(items) && items.length > 0) {
+        try {
+          const offer = await offerService.createOffer(merchant.id, actorId, {
+            conversationId: conversation.id,
+            expirationHours: 24,
+            forceDraft: false,
+            items: items.map((i: any) => ({
+              productId: i.productId,
+              variantId: i.variantId,
+              quantity: Number(i.quantity),
+              agreedPrice: Number(i.proposedUnitPrice ?? i.agreedPrice)
+            }))
+          });
+
+          activeOfferData = {
+            id: offer.id,
+            status: offer.status,
+            totalAmount: offer.totalAmount,
+            currency: offer.merchant?.currency || merchant.currency,
+            itemsCount: offer.items.length
+          };
+        } catch (offerErr) {
+          console.warn('[AgentService] Could not auto-create offer record:', offerErr);
+        }
+      }
+    }
+
     return {
       success: true,
       conversationId: conversation.id,
       message: execution.reply,
       toolCallsExecuted: execution.toolCallsExecuted,
-      evaluationResult: evaluation
+      evaluationResult: evaluation,
+      activeOffer: activeOfferData
     };
   }
 }

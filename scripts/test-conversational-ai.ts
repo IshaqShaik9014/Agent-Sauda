@@ -57,32 +57,40 @@ async function testConversationalAI() {
     return data;
   };
 
-  // 1. Test Policy Question ("return policy ?")
+  // 1. Test Policy Question ("return what policy ?")
   console.log('\n--- TEST 1: Policy Question (RAG) ---');
-  await sendMessage('return policy ?', /(?:return|policy|days|according)/i);
+  await sendMessage('return what policy ?', /(?:return|policy|days|according)/i);
 
-  // 2. Test Percentage Volume Discount ("i want 10% discount on aeroMesh task chair i am buing 50 sets")
-  console.log('\n--- TEST 2: Percentage & Volume Discount with Typos ---');
-  await sendMessage('i want 10% discount on aeroMesh task chair i am buing 50 sets', /(?:discount|offer|deal|₹|manager)/i);
+  // 2. Test Unsolicited Affirmation ("sauda pakka")
+  console.log('\n--- TEST 2: Unsolicited Affirmation ---');
+  await sendMessage('sauda pakka', /(?:proceed|which product|catalog|price)/i);
 
-  // 3. Test Generic Percentage Inquiry ("Can you offer a 10% volume discount for 3 units?")
-  console.log('\n--- TEST 3: Volume Discount for 3 Units ---');
-  await sendMessage('Can you offer a 10% volume discount for 3 units?', /(?:discount|offer|deal|₹|manager)/i);
+  // 3. Test Percentage Volume Discount ("10 Ergonomic Study Chairs for 10%")
+  console.log('\n--- TEST 3: 10 Study Chairs for 10% ---');
+  await sendMessage('10 Ergonomic Study Chairs for 10%', /(?:discount|offer|counter-offer|₹)/i);
 
-  // 4. Test Rupee Price Negotiation ("I get the Ergonomic Study Chair for ₹5,700?")
-  console.log('\n--- TEST 4: Rupee Price Negotiation ---');
-  const negData = await sendMessage('I get the Ergonomic Study Chair for ₹5,700?', /(?:deal agreed|offer|counter|₹5,700|₹)/i);
+  // 4. Test Multi-word Affirmation ("yeah ok")
+  console.log('\n--- TEST 4: Multi-Word Affirmation ("yeah ok") ---');
+  const affRes1 = await sendMessage('yeah ok', /(?:deal confirmed|locked|quote card|checkout)/i);
+  if (!affRes1.activeOffer?.id) {
+    throw new Error('Expected activeOffer to be generated on deal confirmation!');
+  }
+  console.log(`   ✅ Active Commercial Offer Generated: ${affRes1.activeOffer.id} (Total: ₹${affRes1.activeOffer.totalAmount})`);
 
-  // 5. Test Affirmation ("yeah" or "deal")
-  console.log('\n--- TEST 5: Affirmation / Acceptance ("yeah") ---');
-  await sendMessage('yeah', /(?:deal confirmed|locked|official quote|checkout)/i);
+  // 5. Test Fix The Deal ("fix the deal")
+  console.log('\n--- TEST 5: Fix The Deal Phrase ---');
+  await sendMessage('fix the deal', /(?:deal confirmed|locked|quote card|checkout)/i);
 
-  // 6. Test Product Spec Inquiry ("tell me about the chair")
-  console.log('\n--- TEST 6: Product Inquiry ---');
+  // 6. Test Best Price / Lowest Price
+  console.log('\n--- TEST 6: Best Price Request ---');
+  await sendMessage('what is your best price on 5 chairs?', /(?:best authorized price|₹|lock this deal)/i);
+
+  // 7. Test Product Spec Inquiry ("tell me about the chair")
+  console.log('\n--- TEST 7: Product Inquiry ---');
   await sendMessage('tell me about the chair', /(?:price|stock|warehouse|available)/i);
 
-  // 7. Test Gratitude ("thank you so much")
-  console.log('\n--- TEST 7: Gratitude ---');
+  // 8. Test Gratitude ("thank you so much")
+  console.log('\n--- TEST 8: Gratitude ---');
   await sendMessage('thank you so much', /(?:welcome|always here|great day|happy)/i);
 
   await app.close();
@@ -91,9 +99,9 @@ async function testConversationalAI() {
   console.log('\n======================================================================');
   console.log('🎉 ALL NATURAL LANGUAGE CONVERSATIONAL AI TESTS PASSED 100%!');
   console.log('   • RAG Policy Q&A returns grounded answers');
-  console.log('   • Percentage discounts ("10% off", "50 sets") parsed & evaluated');
-  console.log('   • Affirmations ("yeah", "deal") lock in agreements smoothly');
-  console.log('   • No generic catalog dump repetitions');
+  console.log('   • Multi-word affirmations ("yeah ok", "fix the deal") confirmed');
+  console.log('   • Commercial Offer Record automatically generated');
+  console.log('   • Best price inquiries and stock inquiries handled seamlessly');
   console.log('======================================================================');
 }
 

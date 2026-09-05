@@ -141,15 +141,15 @@ export class OfferService {
       async (tx) => {
       const createdOffer = await tx.offer.create({
         data: {
-          merchantId,
-          conversationId: conversationId!,
+          merchant: { connect: { id: merchantId } },
+          conversation: { connect: { id: conversationId! } },
           offerNumber,
-          subtotal,
-          discountAmount,
-          discountPercent,
+          subtotal: Number(subtotal.toFixed(2)),
+          discountAmount: Number(discountAmount.toFixed(2)),
+          discountPercent: Number(discountPercent.toFixed(2)),
           taxAmount: 0,
-          totalAmount,
-          marginPercent,
+          totalAmount: Number(totalAmount.toFixed(2)),
+          marginPercent: Number(marginPercent.toFixed(2)),
           policyDecision: evaluation.decision,
           policyReason: evaluation.reasons.join('; ') || 'Approved by merchant policy engine',
           status: initialStatus,

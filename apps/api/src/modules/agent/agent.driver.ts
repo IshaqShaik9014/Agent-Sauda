@@ -148,14 +148,14 @@ export class GeminiAgentDriver implements IAgentDriver {
 
 /**
  * Intelligent Semantic Agent Driver (Advanced Offline & Context-Aware Engine).
- * Comprehends affirmations, percentage discounts, policy RAG queries, multi-turn negotiations,
- * and product specs without generic fallbacks.
+ * Comprehends multi-word affirmations, percentage discounts, policy RAG queries, multi-turn negotiations,
+ * stock queries, and product specs without generic fallbacks.
  */
 export class DeterministicAgentDriver implements IAgentDriver {
   async executeTurn(ctx: AgentContext, _systemPrompt: string): Promise<AgentExecutionResult> {
     const lastUserMsg = [...ctx.messages].reverse().find((m) => m.role === 'user');
     const userText = (lastUserMsg?.content || '').trim();
-    const lowerText = userText.toLowerCase();
+    const lowerText = userText.toLowerCase().replace(/[^\w\s₹%.,-]/g, ' ');
 
     const toolCallsExecuted: ToolCallDefinition[] = [];
     const toolResults: Array<{ toolName: string; result: unknown }> = [];
@@ -176,6 +176,23 @@ export class DeterministicAgentDriver implements IAgentDriver {
     };
     const products = catResult.products || [];
 
+    // Helper: Find recent product mentioned in conversation history
+    const getRecentProductFromHistory = (): CatalogProductItem => {
+      for (const msg of [...ctx.messages].reverse()) {
+        const content = msg.content.toLowerCase();
+        for (const p of products) {
+          if (content.includes(p.title.toLowerCase())) {
+            return p;
+          }
+          const words = p.title.toLowerCase().split(/\s+/);
+          if (words.some((w) => w.length > 3 && content.includes(w))) {
+            return p;
+          }
+        }
+      }
+      return products[0] || { id: 'fallback', title: 'Product', basePrice: 5000, availableUnits: 10 };
+    };
+
     // Helper: Find best matching product from user text
     const findProduct = (text: string): CatalogProductItem => {
       const t = text.toLowerCase();
@@ -183,27 +200,14 @@ export class DeterministicAgentDriver implements IAgentDriver {
       const exact = products.find((p) => t.includes(p.title.toLowerCase()));
       if (exact) return exact;
 
-      // Match key words (aeromesh, ergopro, desk, chair, solstice, lumina, nexus, study)
+      // Match key words (aeromesh, ergopro, desk, chair, solstice, lumina, nexus, study, walnut, executive)
       const keywordMatch = products.find((p) => {
         const words = p.title.toLowerCase().split(/\s+/);
         return words.some((w) => w.length > 3 && t.includes(w));
       });
       if (keywordMatch) return keywordMatch;
 
-      // Default to first product in catalog
-      return products[0] || { id: 'fallback', title: 'Product', basePrice: 5000, availableUnits: 10 };
-    };
-
-    // Helper: Find recent product mentioned in conversation history
-    const getRecentProductFromHistory = (): CatalogProductItem => {
-      for (const msg of [...ctx.messages].reverse()) {
-        for (const p of products) {
-          if (msg.content.toLowerCase().includes(p.title.toLowerCase())) {
-            return p;
-          }
-        }
-      }
-      return products[0] || { id: 'fallback', title: 'Product', basePrice: 5000, availableUnits: 10 };
+      return getRecentProductFromHistory();
     };
 
     // --------------------------------------------------------------------------
@@ -231,50 +235,104 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 2. Affirmation / Deal Acceptance ("yeah", "yes", "deal", "accept", "done", "ok", "pakka")
+    // 2. Affirmation / Deal Acceptance
+    // Handles single & multi-word affirmations: "yeah", "yes", "yeah ok", "ok done",
+    // "fix the deal", "lock the deal", "sauda pakka", "let's do it", "i accept", etc.
     // --------------------------------------------------------------------------
     const isAffirmation =
-      /^(?:yeah|yes|yep|yup|deal|done|ok|okay|i accept|accept|sure|confirm|let'?s do it|sauda pakka|agreed|sounds good)[\s!.]*$/i.test(
+      /^(?:yeah|yes|yep|yup|ha|haa|deal|done|ok|okay|sure|k|alright|fine|agreed|sounds good|go ahead|proceed|accepted?|confirm(?:ed)?|let'?s do (?:it|this)|sauda pakka|pakka|theek hai|chalega|fix (?:the |this )?deal|lock (?:the |this )?(?:deal|price)|seal (?:the )?deal|finalize(?: the deal)?|book (?:it|this|order)|make it happen|bill it|pack it)(?:\s+(?:yeah|yes|ok|okay|done|deal|please|sure|bro|sir|boss|man|let'?s do it|go ahead|proceed|sauda pakka|pakka|theek hai))*[\s!.]*$/i.test(
         lowerText
       ) ||
-      lowerText === 'yeah' ||
-      lowerText === 'yes' ||
-      lowerText === 'done' ||
-      lowerText === 'deal';
+      lowerText.includes('fix the deal') ||
+      lowerText.includes('fix deal') ||
+      lowerText.includes('lock the deal') ||
+      lowerText.includes('lock deal') ||
+      lowerText.includes('seal the deal') ||
+      lowerText.includes('seal deal') ||
+      lowerText.includes('accept the offer') ||
+      lowerText.includes('accept this offer') ||
+      lowerText.includes('accept offer') ||
+      lowerText.includes('confirm the deal') ||
+      lowerText.includes('confirm deal') ||
+      lowerText.includes('confirm order') ||
+      lowerText.includes('i agree') ||
+      lowerText.includes('sounds good to me') ||
+      lowerText.includes('go ahead with this') ||
+      lowerText.includes('proceed with this') ||
+      lowerText.includes('proceed with order') ||
+      lowerText.includes('finalize the deal') ||
+      lowerText.includes('finalize deal') ||
+      lowerText.includes('book my order') ||
+      lowerText.includes('book the order') ||
+      lowerText.includes('sauda pakka') ||
+      lowerText.includes('deal done') ||
+      lowerText.includes('done deal') ||
+      (lowerText.includes('yeah') && (lowerText.includes('ok') || lowerText.includes('sure') || lowerText.includes('deal'))) ||
+      (lowerText.includes('yes') && (lowerText.includes('ok') || lowerText.includes('please') || lowerText.includes('sure')));
 
     if (isAffirmation) {
-      // Find the last offer/counter-offer price proposed in conversation
       let agreedPrice: number | null = null;
+      let agreedQuantity = 1;
       let targetProduct = getRecentProductFromHistory();
 
+      // Scan conversation history from newest to oldest
       for (const msg of [...ctx.messages].reverse()) {
         if (msg.role === 'assistant') {
-          // Look for price like ₹7,820 or ₹5,700 in assistant text
-          const m = msg.content.match(/₹([\d,]+)/);
-          if (m && m[1]) {
-            const parsed = parseInt(m[1].replace(/,/g, ''), 10);
-            if (parsed > 500) {
+          // Look for price like ₹5,488/unit or ₹7,820 or ₹5,700 in assistant text
+          const unitPriceMatch = msg.content.match(/₹([\d,]+)\s*(?:\/unit|per unit)/i);
+          if (unitPriceMatch && unitPriceMatch[1]) {
+            const parsed = parseInt(unitPriceMatch[1].replace(/,/g, ''), 10);
+            if (parsed > 100) {
               agreedPrice = parsed;
-              break;
             }
+          }
+
+          if (!agreedPrice) {
+            const priceMatch =
+              msg.content.match(/(?:counter-offer|offer|price|at|is)\s+₹([\d,]+)/i) ||
+              msg.content.match(/₹([\d,]+)/);
+            if (priceMatch && priceMatch[1]) {
+              const parsed = parseInt(priceMatch[1].replace(/,/g, ''), 10);
+              if (parsed > 100) {
+                agreedPrice = parsed;
+              }
+            }
+          }
+
+          // Look for quantity in assistant text like `10x "Ergonomic Study Chair"`
+          const qtyMatch = msg.content.match(/(\d+)\s*x\s*["']/i);
+          if (qtyMatch && qtyMatch[1]) {
+            agreedQuantity = parseInt(qtyMatch[1], 10);
+          }
+
+          if (agreedPrice) break;
+        } else if (msg.role === 'user') {
+          // Look for quantity in user messages like `10 Ergonomic Study Chairs` or `50 sets`
+          const qtyMatch =
+            msg.content.match(/(\d+)\s*(?:sets|units|items|chairs|desks|pieces|pcs|pieces)/i) ||
+            msg.content.match(/^(\d+)\s+[a-zA-Z]/i) ||
+            msg.content.match(/(?:buing|buying|order|want|for|need)\s*(\d+)/i);
+          if (qtyMatch && qtyMatch[1] && agreedQuantity === 1) {
+            agreedQuantity = parseInt(qtyMatch[1], 10);
           }
         }
       }
 
       if (agreedPrice) {
-        // Submit the offer to generate formal quotation
+        // Submit the offer to policy engine to validate and generate formal quotation
         await runTool('propose_offer', {
-          items: [{ productId: targetProduct.id, quantity: 1, proposedUnitPrice: agreedPrice }]
+          items: [{ productId: targetProduct.id, quantity: agreedQuantity, proposedUnitPrice: agreedPrice }]
         });
 
+        const totalAmt = agreedPrice * agreedQuantity;
         return {
-          reply: `Fantastic! Deal confirmed 🎉 I've locked in your negotiated price at ₹${agreedPrice.toLocaleString('en-IN')}/unit for "${targetProduct.title}". Your official quote card has been generated. Click 'Accept & Checkout' below to complete your order!`,
+          reply: `Fantastic! Deal confirmed 🎉 I've locked in your negotiated price at ₹${agreedPrice.toLocaleString('en-IN')}/unit for ${agreedQuantity}x "${targetProduct.title}" (Total: ₹${totalAmt.toLocaleString('en-IN')} ${ctx.currency}). Your official quote card has been generated. Click 'Accept & Checkout' below to complete your order!`,
           toolCallsExecuted,
           toolResults
         };
       } else {
         return {
-          reply: `Great! Which product from our catalog would you like to proceed with, or what price can I propose for you?`,
+          reply: `I'm ready to make a deal! Which product from our catalog would you like to proceed with, and what quantity or target price do you have in mind?`,
           toolCallsExecuted,
           toolResults
         };
@@ -297,8 +355,12 @@ export class DeterministicAgentDriver implements IAgentDriver {
       lowerText.includes('terms') ||
       lowerText.includes('assembled') ||
       lowerText.includes('assembly') ||
+      lowerText.includes('courier') ||
       lowerText.includes('delhivery') ||
-      lowerText.includes('bluedart');
+      lowerText.includes('bluedart') ||
+      lowerText.includes('dispatch') ||
+      lowerText.includes('cancellation') ||
+      lowerText.includes('cancel');
 
     // Only route to RAG if not primarily a discount offer
     const hasPriceDiscount = lowerText.includes('₹') || lowerText.includes('%') || lowerText.match(/\d{3,7}/);
@@ -328,7 +390,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 4. Percentage-Based Discount Negotiation (e.g. "10% discount on 50 chairs")
+    // 4. Percentage-Based Discount Negotiation (e.g. "10% discount on 50 chairs", "10 Ergonomic Study Chairs for 10%")
     // --------------------------------------------------------------------------
     const percentMatch = lowerText.match(/(\d+(?:\.\d+)?)\s*%\s*(?:discount|off|volume discount)?/i);
 
@@ -336,9 +398,10 @@ export class DeterministicAgentDriver implements IAgentDriver {
       const discountPercent = parseFloat(percentMatch[1]);
       const matchedProduct = findProduct(lowerText);
 
-      // Extract quantity (e.g. "50 sets", "50 units", "3 units", "for 5")
+      // Extract quantity (e.g. "10 Ergonomic Study Chairs", "50 sets", "50 units", "3 units", "for 5")
       const qtyMatch =
         lowerText.match(/(\d+)\s*(?:sets|units|items|chairs|desks|pieces|pcs|pieces)/i) ||
+        lowerText.match(/^(\d+)\s+[a-zA-Z]/i) ||
         lowerText.match(/(?:buing|buying|order|want|for|need)\s*(\d+)/i);
       const quantity = qtyMatch && qtyMatch[1] ? parseInt(qtyMatch[1], 10) : 1;
 
@@ -391,7 +454,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 5. Explicit Rupee Price Negotiation (e.g. "I get the Study Chair for ₹5,700?")
+    // 5. Explicit Rupee Price Negotiation (e.g. "I get the Study Chair for ₹5,700?", "5 chairs at 5400")
     // --------------------------------------------------------------------------
     const cleanText = lowerText.replace(/,/g, '');
     const priceMatch =
@@ -406,6 +469,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
 
       const qtyMatch =
         cleanText.match(/(\d+)\s*(?:sets|units|items|chairs|desks|pieces|pcs)/i) ||
+        cleanText.match(/^(\d+)\s+[a-zA-Z]/i) ||
         cleanText.match(/(?:buy|order|want|need|for)\s+(\d+)/i);
       const quantity = qtyMatch && qtyMatch[1] ? parseInt(qtyMatch[1], 10) : 1;
 
@@ -441,7 +505,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
       } else if (evalResult.decision === 'COUNTER' && evalResult.counterOffer?.items?.[0]) {
         const counterPrice = evalResult.counterOffer.items[0].counterUnitPrice;
         return {
-          reply: `I understand you're offering ₹${proposedUnitPrice.toLocaleString('en-IN')}, but that is below our policy limit. The best authorized counter-offer I can make is ₹${counterPrice.toLocaleString('en-IN')}/unit (Total: ₹${evalResult.counterOffer.totalCounterAmount.toLocaleString('en-IN')} ${ctx.currency}, ${evalResult.counterOffer.counterDiscountPercent}% off). Would you like to accept?`,
+          reply: `I understand you're offering ₹${proposedUnitPrice.toLocaleString('en-IN')}, but that is below our policy limit. The best authorized counter-offer I can make is ₹${counterPrice.toLocaleString('en-IN')}/unit for ${quantity}x "${matchedProduct.title}" (Total: ₹${evalResult.counterOffer.totalCounterAmount.toLocaleString('en-IN')} ${ctx.currency}, ${evalResult.counterOffer.counterDiscountPercent}% off). Would you like to accept?`,
           toolCallsExecuted,
           toolResults
         };
@@ -455,7 +519,74 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 6. Product Inquiry / Specific Question
+    // 6. Best Price / Maximum Discount Request
+    // --------------------------------------------------------------------------
+    const isBestPriceQuery =
+      lowerText.includes('best price') ||
+      lowerText.includes('lowest price') ||
+      lowerText.includes('best deal') ||
+      lowerText.includes('maximum discount') ||
+      lowerText.includes('max discount') ||
+      lowerText.includes('what discount') ||
+      lowerText.includes('any discount') ||
+      lowerText.includes('cheapest');
+
+    if (isBestPriceQuery) {
+      const matchedProduct = findProduct(lowerText);
+      const qtyMatch =
+        cleanText.match(/(\d+)\s*(?:sets|units|items|chairs|desks|pieces|pcs)/i) ||
+        cleanText.match(/^(\d+)\s+[a-zA-Z]/i) ||
+        cleanText.match(/(?:buy|order|want|need|for)\s+(\d+)/i);
+      const quantity = qtyMatch && qtyMatch[1] ? parseInt(qtyMatch[1], 10) : 1;
+
+      // Propose a steep discount to trigger the policy counter-offer
+      const evalResult = (await runTool('propose_offer', {
+        items: [{ productId: matchedProduct.id, quantity, proposedUnitPrice: Math.round(matchedProduct.basePrice * 0.7) }]
+      })) as any;
+
+      if (evalResult.decision === 'COUNTER' && evalResult.counterOffer?.items?.[0]) {
+        const counterPrice = evalResult.counterOffer.items[0].counterUnitPrice;
+        return {
+          reply: `The best authorized price we can offer for ${quantity}x "${matchedProduct.title}" is ₹${counterPrice.toLocaleString('en-IN')}/unit (Total: ₹${evalResult.counterOffer.totalCounterAmount.toLocaleString('en-IN')} ${ctx.currency}, ${evalResult.counterOffer.counterDiscountPercent}% off standard price of ₹${matchedProduct.basePrice.toLocaleString('en-IN')}). Would you like to lock this deal in?`,
+          toolCallsExecuted,
+          toolResults
+        };
+      } else if (evalResult.decision === 'ALLOW') {
+        return {
+          reply: `I can offer you ${quantity}x "${matchedProduct.title}" at ₹${Math.round(matchedProduct.basePrice * 0.7).toLocaleString('en-IN')}/unit. Would you like to proceed?`,
+          toolCallsExecuted,
+          toolResults
+        };
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 7. Inventory & Stock Inquiry
+    // --------------------------------------------------------------------------
+    const isStockQuery =
+      lowerText.includes('in stock') ||
+      lowerText.includes('stock') ||
+      lowerText.includes('available') ||
+      lowerText.includes('inventory') ||
+      lowerText.includes('how many');
+
+    if (isStockQuery) {
+      const matchedProduct = findProduct(lowerText);
+      const stockRes = (await runTool('check_inventory', {
+        productId: matchedProduct.id,
+        quantity: 1
+      })) as { availableUnits?: number; sufficientStock?: boolean };
+
+      const availableUnits = stockRes.availableUnits ?? matchedProduct.availableUnits ?? 10;
+      return {
+        reply: `We currently have **${availableUnits} units** of **${matchedProduct.title}** available in our warehouse ready for immediate dispatch. Would you like to place an order or negotiate a volume discount?`,
+        toolCallsExecuted,
+        toolResults
+      };
+    }
+
+    // --------------------------------------------------------------------------
+    // 8. Product Inquiry / Specific Question
     // --------------------------------------------------------------------------
     const matched = products.find(
       (p) => lowerText.includes(p.title.toLowerCase()) || p.title.toLowerCase().split(' ').some((w) => w.length > 3 && lowerText.includes(w))
@@ -470,9 +601,9 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 7. General Greetings & Pleasantries
+    // 9. General Greetings & Pleasantries
     // --------------------------------------------------------------------------
-    if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('hey') || lowerText === 'help') {
+    if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('hey') || lowerText === 'help' || lowerText.includes('namaste')) {
       const topProducts = products.slice(0, 3).map((p) => `• **${p.title}** — ₹${p.basePrice.toLocaleString('en-IN')} (${p.availableUnits} in stock)`).join('\n');
       return {
         reply: `Hello! Welcome to **${ctx.merchantName}**.\n\nHere are some of our popular products:\n${topProducts}\n\nI can answer questions about our store policies, check live warehouse inventory, or negotiate bulk discounts. What can I help you with today?`,
@@ -482,9 +613,9 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 8. Gratitude & Closing
+    // 10. Gratitude & Closing
     // --------------------------------------------------------------------------
-    if (lowerText.includes('thank') || lowerText.includes('thanks') || lowerText.includes('bye')) {
+    if (lowerText.includes('thank') || lowerText.includes('thanks') || lowerText.includes('bye') || lowerText.includes('dhanyawad') || lowerText.includes('shukriya')) {
       return {
         reply: `You're very welcome! If you have any further questions or want to negotiate another deal at **${ctx.merchantName}**, I'm always here. Have a wonderful day!`,
         toolCallsExecuted,
@@ -493,7 +624,7 @@ export class DeterministicAgentDriver implements IAgentDriver {
     }
 
     // --------------------------------------------------------------------------
-    // 9. Intelligent Open-Ended Fallback
+    // 11. Intelligent Open-Ended Fallback
     // --------------------------------------------------------------------------
     const productNames = products.map((p) => `"${p.title}" (₹${p.basePrice.toLocaleString('en-IN')})`).join(', ');
     return {
