@@ -90,7 +90,8 @@ export function ChatInterface({
       const response = await api.sendChatMessage({
         conversationId,
         message: text,
-        customerName: 'Buyer'
+        customerName: 'Buyer',
+        merchantSlug
       });
 
       setConversationId(response.conversationId);

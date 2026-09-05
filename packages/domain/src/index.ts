@@ -220,6 +220,8 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export const ChatInputSchema = z.object({
   conversationId: z.string().uuid().optional(),
+  merchantId: z.string().uuid().optional(),
+  merchantSlug: z.string().optional(),
   message: z.string().min(1, 'Message content cannot be empty'),
   customerId: z.string().optional(),
   customerName: z.string().optional()
