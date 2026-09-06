@@ -1,8 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { ChatInputSchema } from './agent.schema.js';
 import { agentService } from './agent.service.js';
+import { agentStreamManager } from './agent.stream.js';
+import { buildSystemPrompt } from './agent.prompts.js';
+import { offerService } from '../offer/offer.service.js';
+import { notificationService } from '../notification/notification.service.js';
 import { prisma } from '@agent-sauda/database';
 import { sanitizeString } from '../../lib/sanitize.js';
+import type { AgentContext } from './agent.types.js';
+import type { ChatMessage } from '@agent-sauda/domain';
 
 const ErrorResponseSchema = {
   type: 'object',
@@ -290,6 +296,182 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
             requestId: request.id
           }
         });
+      }
+    }
+  );
+
+  /**
+   * POST /api/agent/chat/stream
+   * Real-time Server-Sent Events (SSE) streaming chat endpoint.
+   * Progressively streams token chunks, tool execution events, and dynamic quote cards.
+   */
+  fastify.post(
+    '/agent/chat/stream',
+    {
+      config: {
+        rateLimit: {
+          max: 40,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      const body = request.body as any;
+      const merchantSlug = body?.merchantSlug || 'abc-furniture';
+
+      const merchant = await prisma.merchant.findFirst({
+        where: body?.merchantId ? { id: body.merchantId } : { slug: merchantSlug }
+      });
+
+      if (!merchant) {
+        return reply.status(404).send({ success: false, error: 'Merchant not found' });
+      }
+
+      // Set Server-Sent Events (SSE) Response Headers
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+      });
+
+      const writeEvent = (event: string, data: Record<string, unknown> | string) => {
+        const payload = typeof data === 'string' ? data : JSON.stringify(data);
+        reply.raw.write(`event: ${event}\ndata: ${payload}\n\n`);
+      };
+
+      try {
+        const userText = sanitizeString(body?.message || '');
+
+        // 1. Resolve or create Conversation
+        let conversation = body?.conversationId
+          ? await prisma.conversation.findFirst({
+              where: { id: body.conversationId, merchantId: merchant.id },
+              include: { messages: { orderBy: { createdAt: 'asc' }, take: 30 } }
+            })
+          : null;
+
+        if (!conversation) {
+          conversation = await prisma.conversation.create({
+            data: {
+              merchantId: merchant.id,
+              buyerId: body?.customerId || null,
+              buyerSessionId: body?.customerId || `session_${Date.now()}`,
+              channel: 'WEB',
+              status: 'ACTIVE'
+            },
+            include: { messages: true }
+          });
+        }
+
+        // 2. Persist User Message
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: 'BUYER',
+            content: userText
+          }
+        });
+
+        // 3. Build Context
+        const history: ChatMessage[] = conversation.messages.map((m) => ({
+          id: m.id,
+          role: m.sender === 'BUYER' ? 'user' : 'assistant',
+          content: m.content,
+          createdAt: m.createdAt
+        }));
+        history.push({ role: 'user', content: userText });
+
+        const ctx: AgentContext = {
+          merchantId: merchant.id,
+          merchantName: merchant.name,
+          merchantSlug: merchant.slug,
+          currency: merchant.currency,
+          conversationId: conversation.id,
+          messages: history
+        };
+
+        const systemPrompt = buildSystemPrompt(ctx);
+
+        // 4. Stream Turn
+        const streamResult = await agentStreamManager.streamTurn(ctx, systemPrompt, {
+          writeEvent,
+          close: () => reply.raw.end()
+        });
+
+        // 5. Check if offer created
+        let createdOffer: any = null;
+        if (streamResult.evaluation && (streamResult.evaluation.decision === 'ALLOW' || streamResult.evaluation.decision === 'APPROVAL_REQUIRED')) {
+          const proposeCall = streamResult.toolCallsExecuted.find((c) => c.name === 'propose_offer');
+          const items = (proposeCall?.arguments as any)?.items;
+          if (items && Array.isArray(items) && items.length > 0) {
+            try {
+              const isApprovalRequired = streamResult.evaluation.decision === 'APPROVAL_REQUIRED';
+              const offer = await offerService.createOffer(merchant.id, undefined, {
+                conversationId: conversation.id,
+                expirationHours: 24,
+                forceDraft: isApprovalRequired,
+                items: items.map((i: any) => ({
+                  productId: i.productId,
+                  variantId: i.variantId,
+                  quantity: Number(i.quantity),
+                  agreedPrice: Number(i.proposedUnitPrice ?? i.agreedPrice)
+                }))
+              });
+
+              createdOffer = {
+                id: offer.id,
+                status: offer.status,
+                totalAmount: offer.totalAmount,
+                currency: merchant.currency,
+                itemsCount: offer.items.length
+              };
+
+              // Notify frontend about offer
+              writeEvent('offer_ready', { offer: createdOffer });
+
+              // If approval required, dispatch real-time manager notification alert
+              if (isApprovalRequired) {
+                await notificationService.dispatchApprovalAlert({
+                  merchantId: merchant.id,
+                  merchantName: merchant.name,
+                  offerId: offer.id,
+                  offerNumber: offer.offerNumber,
+                  productTitle: offer.items[0]?.productTitle || 'Product',
+                  quantity: offer.items[0]?.quantity || 1,
+                  originalPrice: offer.items[0]?.unitPrice || offer.subtotal,
+                  proposedPrice: offer.items[0]?.agreedPrice || offer.totalAmount,
+                  costPrice: 0,
+                  discountPercent: offer.discountPercent ?? 0,
+                  marginPercent: offer.marginPercent ?? 0,
+                  customerName: body?.customerName || 'Buyer'
+                });
+              }
+            } catch (offerErr) {
+              console.warn('[StreamChat] Could not create offer:', offerErr);
+            }
+          }
+        }
+
+        // 6. Persist Assistant Reply
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: 'AGENT',
+            content: streamResult.reply,
+            toolCalls: (streamResult.toolCallsExecuted as any) ?? null
+          }
+        });
+
+        writeEvent('done', {
+          conversationId: conversation.id,
+          activeOffer: createdOffer
+        });
+
+        reply.raw.end();
+      } catch (streamErr) {
+        writeEvent('error', { message: (streamErr as Error).message });
+        reply.raw.end();
       }
     }
   );

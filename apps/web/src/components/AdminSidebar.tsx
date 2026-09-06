@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth, type MerchantSession } from '../lib/auth';
+import { api } from '../lib/api';
 import {
   LayoutDashboard,
   Package,
@@ -28,11 +29,29 @@ interface AdminSidebarProps {
 export function AdminSidebar({ merchant }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
 
   const handleLogout = () => {
     auth.clearSession();
     router.push('/admin/login');
   };
+
+  // Poll for pending approvals every 8 seconds for real-time notification sync
+  useEffect(() => {
+    if (!merchant?.id) return;
+
+    const fetchPendingCount = async () => {
+      try {
+        const res = await api.getPendingApprovals(merchant.id);
+        const count = res.approvals?.filter((a: any) => a.status === 'PENDING').length || 0;
+        setPendingApprovalsCount(count);
+      } catch {}
+    };
+
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 8000);
+    return () => clearInterval(interval);
+  }, [merchant?.id]);
 
   const navItems = [
     {
@@ -64,7 +83,8 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
     {
       name: 'HITL Approvals',
       href: '/admin/approvals',
-      icon: CheckSquare
+      icon: CheckSquare,
+      badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined
     },
     {
       name: 'Orders & Dispatch',
@@ -132,7 +152,15 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
                   <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
                   <span>{item.name}</span>
                 </div>
-                {isActive && <ChevronRight className="h-3.5 w-3.5 text-indigo-400" />}
+                <div className="flex items-center gap-1.5">
+                  {item.badge !== undefined && (
+                    <span className="flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.2 text-[10px] font-bold text-amber-400 animate-pulse">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      {item.badge}
+                    </span>
+                  )}
+                  {isActive && <ChevronRight className="h-3.5 w-3.5 text-indigo-400" />}
+                </div>
               </Link>
             );
           })}

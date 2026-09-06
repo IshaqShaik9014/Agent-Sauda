@@ -5,7 +5,9 @@ import {
   ListApprovalsQuerySchema
 } from './approval.schema.js';
 import { approvalService } from './approval.service.js';
+import { notificationService } from '../notification/notification.service.js';
 import { authenticate, requireMerchantAccess, requireRole } from '../../middleware/auth.middleware.js';
+import { prisma } from '@agent-sauda/database';
 
 const ErrorResponseSchema = {
   type: 'object',
@@ -434,6 +436,85 @@ export const approvalRoutes: FastifyPluginAsync = async (fastify) => {
           }
         });
       }
+    }
+  );
+
+  /**
+   * GET /api/offers/:offerId/quick-approve
+   * 1-Click HMAC-signed mobile authorization endpoint (Slack / WhatsApp / Telegram).
+   */
+  fastify.get(
+    '/offers/:offerId/quick-approve',
+    {
+      schema: {
+        tags: ['Merchant Approvals (HITL)'],
+        summary: '1-Click HMAC Quick Approval for Store Managers',
+        params: {
+          type: 'object',
+          required: ['offerId'],
+          properties: {
+            offerId: { type: 'string', format: 'uuid' }
+          }
+        },
+        querystring: {
+          type: 'object',
+          required: ['token'],
+          properties: {
+            token: { type: 'string' }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const { offerId } = request.params as { offerId: string };
+      const { token } = request.query as { token: string };
+
+      const verification = notificationService.verifyQuickApproveToken(token);
+      if (!verification.valid || verification.offerId !== offerId) {
+        return reply.status(403).send({
+          success: false,
+          error: {
+            code: 'INVALID_APPROVAL_TOKEN',
+            message: verification.reason || 'Invalid or expired quick-approval token.'
+          }
+        });
+      }
+
+      const offer = await prisma.offer.findUnique({
+        where: { id: offerId },
+        include: { approvals: true }
+      });
+
+      if (!offer) {
+        return reply.status(404).send({ success: false, error: { message: 'Offer not found' } });
+      }
+
+      // Transition offer to ACTIVE and resolve pending approval request
+      await prisma.$transaction(async (tx) => {
+        await tx.offer.update({
+          where: { id: offerId },
+          data: { status: 'ACTIVE' }
+        });
+
+        const pendingReq = offer.approvals.find((r) => r.status === 'PENDING');
+        if (pendingReq) {
+          await tx.approval.update({
+            where: { id: pendingReq.id },
+            data: {
+              status: 'APPROVED',
+              resolvedAt: new Date(),
+              resolutionNotes: '1-Click Quick Approved via HMAC Webhook Alert'
+            }
+          });
+        }
+      });
+
+      return reply.status(200).send({
+        success: true,
+        message: `Deal #${offer.offerNumber} has been successfully APPROVED! Buyer checkout is now unlocked.`,
+        offerId: offer.id,
+        status: 'ACTIVE'
+      });
     }
   );
 };

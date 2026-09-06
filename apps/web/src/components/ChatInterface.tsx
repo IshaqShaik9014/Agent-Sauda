@@ -8,7 +8,11 @@ import {
   Sparkles,
   Loader2,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  Search,
+  Package,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { OfferCard } from './OfferCard';
 import { api, type PublicCatalogProduct } from '../lib/api';
@@ -20,6 +24,7 @@ export interface ChatMessageItem {
   content: string;
   offer?: OfferResponse;
   timestamp: Date;
+  isStreaming?: boolean;
 }
 
 interface ChatInterfaceProps {
@@ -40,13 +45,14 @@ export function ChatInterface({
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingToolStatus, setStreamingToolStatus] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streamingToolStatus]);
 
   // Initial welcome message from AI Agent
   useEffect(() => {
@@ -85,46 +91,172 @@ export function ChatInterface({
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
+    setStreamingToolStatus(null);
+
+    const agentMessageId = `agent-${Date.now()}`;
+    const initialAgentMessage: ChatMessageItem = {
+      id: agentMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true
+    };
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
     try {
-      const response = await api.sendChatMessage({
-        conversationId,
-        message: text,
-        customerName: 'Buyer',
-        merchantSlug
+      // Initiate Server-Sent Events (SSE) streaming chat request
+      const response = await fetch(`${apiUrl}/api/agent/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          message: text,
+          customerName: 'Buyer',
+          merchantSlug
+        })
       });
 
-      setConversationId(response.conversationId);
+      if (!response.ok || !response.body) {
+        throw new Error(`Streaming failed with status ${response.status}`);
+      }
 
-      let fetchedOffer: OfferResponse | undefined = undefined;
-      if (response.activeOffer?.id) {
-        try {
-          const offerDetails = await api.getOffer(response.activeOffer.id);
-          fetchedOffer = offerDetails.offer;
-        } catch {
-          // If offer lookup fails, continue with text
+      setMessages((prev) => [...prev, initialAgentMessage]);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let accumulatedText = '';
+      let activeOfferObj: OfferResponse | undefined = undefined;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const block of lines) {
+          if (!block.trim()) continue;
+
+          let eventType = 'message';
+          let eventData = '';
+
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) {
+              eventType = line.replace('event: ', '').trim();
+            } else if (line.startsWith('data: ')) {
+              eventData = line.replace('data: ', '').trim();
+            }
+          }
+
+          if (eventType === 'text_delta') {
+            try {
+              const parsed = JSON.parse(eventData);
+              accumulatedText += parsed.chunk || '';
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === agentMessageId
+                    ? { ...msg, content: accumulatedText, isStreaming: true }
+                    : msg
+                )
+              );
+            } catch {
+              accumulatedText += eventData;
+            }
+          } else if (eventType === 'tool_call') {
+            try {
+              const parsed = JSON.parse(eventData);
+              if (parsed.tool === 'search_merchant_knowledge') {
+                setStreamingToolStatus('📚 Searching store knowledge & return policies...');
+              } else if (parsed.tool === 'check_inventory') {
+                setStreamingToolStatus('📦 Checking warehouse inventory availability...');
+              } else if (parsed.tool === 'propose_offer') {
+                setStreamingToolStatus('🛡️ Evaluating deterministic profit margin policy...');
+              } else if (parsed.tool === 'search_catalog') {
+                setStreamingToolStatus('🔍 Querying official product specifications...');
+              }
+            } catch {}
+          } else if (eventType === 'tool_result') {
+            setStreamingToolStatus(null);
+          } else if (eventType === 'offer_ready') {
+            try {
+              const parsed = JSON.parse(eventData);
+              if (parsed.offer?.id) {
+                const offerDetails = await api.getOffer(parsed.offer.id);
+                activeOfferObj = offerDetails.offer;
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === agentMessageId ? { ...msg, offer: activeOfferObj } : msg
+                  )
+                );
+              }
+            } catch {}
+          } else if (eventType === 'done') {
+            try {
+              const parsed = JSON.parse(eventData);
+              if (parsed.conversationId) {
+                setConversationId(parsed.conversationId);
+              }
+            } catch {}
+          }
         }
       }
 
-      const agentMessage: ChatMessageItem = {
-        id: `agent-${Date.now()}`,
-        role: 'assistant',
-        content: response.message,
-        offer: fetchedOffer,
-        timestamp: new Date()
-      };
-
-      setMessages((prev) => [...prev, agentMessage]);
+      // Finalize streaming message state
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === agentMessageId
+            ? { ...msg, isStreaming: false, offer: activeOfferObj }
+            : msg
+        )
+      );
     } catch (err: unknown) {
-      const errorMessage: ChatMessageItem = {
-        id: `error-${Date.now()}`,
-        role: 'system',
-        content: `⚠️ Failed to get a response from sales agent: ${(err as Error).message}`,
-        timestamp: new Date()
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      console.warn('[ChatInterface] Streaming fallback to standard REST:', err);
+      // Fallback to standard chat endpoint if streaming interrupted
+      try {
+        const fallbackRes = await api.sendChatMessage({
+          conversationId,
+          message: text,
+          customerName: 'Buyer',
+          merchantSlug
+        });
+
+        setConversationId(fallbackRes.conversationId);
+        let fetchedOffer: OfferResponse | undefined = undefined;
+
+        if (fallbackRes.activeOffer?.id) {
+          try {
+            const offerDetails = await api.getOffer(fallbackRes.activeOffer.id);
+            fetchedOffer = offerDetails.offer;
+          } catch {}
+        }
+
+        setMessages((prev) => [
+          ...prev.filter((m) => m.id !== agentMessageId),
+          {
+            id: `agent-${Date.now()}`,
+            role: 'assistant',
+            content: fallbackRes.message,
+            offer: fetchedOffer,
+            timestamp: new Date()
+          }
+        ]);
+      } catch (fallbackErr) {
+        setMessages((prev) => [
+          ...prev.filter((m) => m.id !== agentMessageId),
+          {
+            id: `error-${Date.now()}`,
+            role: 'system',
+            content: `⚠️ Failed to receive response: ${(fallbackErr as Error).message}`,
+            timestamp: new Date()
+          }
+        ]);
+      }
     } finally {
       setIsLoading(false);
+      setStreamingToolStatus(null);
     }
   };
 
@@ -177,15 +309,15 @@ export function ChatInterface({
   const quickPrompts = [
     'What products do you have available?',
     initialProducts[0]
-      ? `Can you give me 15% off on "${initialProducts[0].title}"?`
-      : 'Can you offer a 10% volume discount for 3 units?',
-    'What is your minimum margin policy?'
+      ? `Can you give me 5% off on "${initialProducts[0].title}"?`
+      : 'Can you offer a 5% discount for 2 units?',
+    'What is your 30-day return policy?'
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto w-full px-2 sm:px-4 py-3">
+    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto w-full px-2 sm:px-4 py-3 antialiased">
       {/* Messages Stream */}
-      <div className="flex-1 overflow-y-auto pr-1 space-y-4 rounded-xl bg-zinc-950/40 p-4 border border-zinc-800/80 shadow-inner">
+      <div className="flex-1 overflow-y-auto pr-1 space-y-4 rounded-2xl bg-slate-950/60 p-4 border border-slate-800/80 shadow-inner backdrop-blur-md">
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
           const isSystem = msg.role === 'system';
@@ -193,7 +325,7 @@ export function ChatInterface({
           if (isSystem) {
             return (
               <div key={msg.id} className="flex justify-center my-2">
-                <div className="rounded-lg bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400">
+                <div className="rounded-xl bg-slate-900/90 border border-slate-800 px-3.5 py-1.5 text-xs text-slate-300 font-medium shadow-sm">
                   {msg.content}
                 </div>
               </div>
@@ -206,7 +338,7 @@ export function ChatInterface({
               className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
             >
               {!isUser && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
                   <Bot className="h-4 w-4" />
                 </div>
               )}
@@ -214,8 +346,8 @@ export function ChatInterface({
               <div
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
                   isUser
-                    ? 'bg-emerald-600 text-white font-medium rounded-tr-none shadow-md shadow-emerald-950/30'
-                    : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-tl-none'
+                    ? 'bg-indigo-600 text-white font-medium rounded-tr-none shadow-md shadow-indigo-950/30'
+                    : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none shadow-sm'
                 }`}
               >
                 <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -232,7 +364,7 @@ export function ChatInterface({
 
                 <div
                   className={`mt-1.5 text-[10px] text-right ${
-                    isUser ? 'text-emerald-200/80' : 'text-zinc-500'
+                    isUser ? 'text-indigo-200/80' : 'text-slate-500'
                   }`}
                 >
                   {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -240,7 +372,7 @@ export function ChatInterface({
               </div>
 
               {isUser && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 text-slate-300">
                   <User className="h-4 w-4" />
                 </div>
               )}
@@ -248,15 +380,15 @@ export function ChatInterface({
           );
         })}
 
-        {/* Loading Indicator */}
-        {isLoading && (
-          <div className="flex gap-3 items-center text-xs text-zinc-400">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 animate-pulse">
+        {/* Live Streaming Tool Badge & Typing Indicator */}
+        {(isLoading || streamingToolStatus) && (
+          <div className="flex gap-3 items-center text-xs text-slate-400">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 animate-pulse">
               <Sparkles className="h-4 w-4" />
             </div>
-            <div className="flex items-center gap-1.5 rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-2.5">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-              <span>Sauda AI is calculating offer margins...</span>
+            <div className="flex items-center gap-2 rounded-xl bg-slate-900 border border-slate-800 px-4 py-2.5 shadow-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+              <span>{streamingToolStatus || 'Sauda AI is evaluating response...'}</span>
             </div>
           </div>
         )}
@@ -264,52 +396,46 @@ export function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Suggestion Chips */}
-      <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] no-scrollbar">
-        <span className="text-[10px] font-semibold text-zinc-400 shrink-0 flex items-center gap-1">
-          <Sparkles className="h-3 w-3 text-emerald-400" /> Suggestions:
-        </span>
+      {/* Quick Prompt Chips */}
+      <div className="flex items-center gap-2 py-2.5 overflow-x-auto no-scrollbar">
+        <span className="text-[11px] font-semibold text-slate-500 shrink-0">Suggestions:</span>
         {quickPrompts.map((prompt, idx) => (
           <button
             key={idx}
             onClick={() => handleSendMessage(prompt)}
             disabled={isLoading}
-            className="rounded-full bg-zinc-900 px-3 py-1 text-zinc-300 border border-zinc-800 hover:bg-zinc-800 hover:border-emerald-500/40 hover:text-emerald-300 transition-colors whitespace-nowrap disabled:opacity-50"
+            className="shrink-0 text-xs px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 hover:border-indigo-500/40 text-slate-300 hover:text-white transition disabled:opacity-50"
           >
             {prompt}
           </button>
         ))}
       </div>
 
-      {/* Input Form Bar */}
+      {/* Chat Input Bar */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           handleSendMessage();
         }}
-        className="mt-2 flex items-center gap-2"
+        className="flex items-center gap-2 pt-1"
       >
         <div className="relative flex-1">
           <input
             type="text"
-            placeholder="Propose a deal (e.g., 'Can I get 2 units for ₹90,000?')..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Ask about products, return policies, or negotiate a price..."
             disabled={isLoading}
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/90 py-3 pl-4 pr-10 text-xs text-zinc-100 placeholder-zinc-500 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
+            className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition shadow-inner"
           />
         </div>
 
         <button
           type="submit"
           disabled={isLoading || !inputValue.trim()}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20 hover:bg-emerald-400 transition-all disabled:opacity-40 disabled:hover:bg-emerald-500"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 disabled:opacity-40 transition"
         >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>
       </form>
     </div>
