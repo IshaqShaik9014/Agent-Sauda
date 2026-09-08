@@ -11,10 +11,12 @@ import {
   XCircle,
   Sparkles
 } from 'lucide-react';
-import type { OfferResponse } from '@agent-sauda/domain';
+import type { OfferResponse, SupportedCurrency } from '@agent-sauda/domain';
+import { formatCurrencyAmount } from '@agent-sauda/domain';
 
 interface OfferCardProps {
   offer: OfferResponse;
+  currency?: SupportedCurrency;
   onAccept?: (offerId: string) => Promise<void>;
   onReject?: (offerId: string) => Promise<void>;
   onProceedToCheckout?: (offerId: string) => void;
@@ -22,6 +24,7 @@ interface OfferCardProps {
 
 export function OfferCard({
   offer,
+  currency = 'INR',
   onAccept,
   onReject,
   onProceedToCheckout
@@ -56,7 +59,7 @@ export function OfferCard({
   const isAccepted = offer.status === 'ACCEPTED';
   const isRejected = offer.status === 'REJECTED';
   const isExpired = offer.isExpired || offer.status === 'EXPIRED';
-  const currency = offer.merchant?.currency || 'INR';
+  const activeCurrency = currency || (offer.merchant?.currency as SupportedCurrency) || 'INR';
 
   return (
     <div className="my-3 overflow-hidden rounded-xl border border-emerald-500/30 bg-zinc-900/90 shadow-lg shadow-emerald-950/20 backdrop-blur-sm transition-all hover:border-emerald-500/50">
@@ -122,15 +125,15 @@ export function OfferCard({
                 <div className="flex items-center gap-1.5 justify-end">
                   {hasDiscount && (
                     <span className="text-[11px] text-zinc-500 line-through">
-                      ₹{item.unitPrice.toLocaleString('en-IN')}
+                      {formatCurrencyAmount(item.unitPrice, activeCurrency)}
                     </span>
                   )}
                   <span className="font-semibold text-zinc-100">
-                    ₹{item.agreedPrice.toLocaleString('en-IN')}
+                    {formatCurrencyAmount(item.agreedPrice, activeCurrency)}
                   </span>
                 </div>
                 <span className="text-[10px] text-zinc-400">
-                  Total: ₹{item.subtotal.toLocaleString('en-IN')}
+                  Total: {formatCurrencyAmount(item.subtotal, activeCurrency)}
                 </span>
               </div>
             </div>
@@ -142,7 +145,7 @@ export function OfferCard({
       <div className="border-t border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
         <div className="flex items-center justify-between text-xs text-zinc-400">
           <span>Catalog Base Price</span>
-          <span>₹{offer.subtotal.toLocaleString('en-IN')}</span>
+          <span>{formatCurrencyAmount(offer.subtotal, activeCurrency)}</span>
         </div>
 
         {offer.discountAmount > 0 && (
@@ -151,7 +154,7 @@ export function OfferCard({
               <Tag className="h-3 w-3" />
               Negotiated Discount ({offer.discountPercent}%)
             </span>
-            <span className="font-medium">-₹{offer.discountAmount.toLocaleString('en-IN')}</span>
+            <span className="font-medium">-{formatCurrencyAmount(offer.discountAmount, activeCurrency)}</span>
           </div>
         )}
 
@@ -159,9 +162,9 @@ export function OfferCard({
           <span className="font-semibold text-zinc-200">Total Payable</span>
           <div className="text-right">
             <span className="text-base font-bold text-emerald-400">
-              ₹{offer.totalAmount.toLocaleString('en-IN')}
+              {formatCurrencyAmount(offer.totalAmount, activeCurrency)}
             </span>
-            <span className="ml-1 text-[10px] text-zinc-500">{currency}</span>
+            <span className="ml-1 text-[10px] text-zinc-500 font-mono">({activeCurrency})</span>
           </div>
         </div>
 

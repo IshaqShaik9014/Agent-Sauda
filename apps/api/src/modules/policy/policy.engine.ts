@@ -21,6 +21,7 @@ export interface EvaluatedItemFact {
   proposedUnitPrice: number;
   basePrice: number;
   costPrice: number;
+  availableStock?: number;
 }
 
 /**
@@ -44,6 +45,24 @@ export function evaluateOfferAgainstPolicy(
   let hasQuantityViolation = false;
   const counterItems: CounterOfferItem[] = [];
 
+  // 0. Evaluate Low Stock Scarcity Guard
+  let isScarcityTightened = false;
+  let scarcityTighteningPercent = 0;
+  const lowStockItems = itemFacts.filter(i => i.availableStock !== undefined && i.availableStock > 0 && i.availableStock <= 3);
+  if (lowStockItems.length > 0) {
+    const minStock = Math.min(...lowStockItems.map(i => i.availableStock!));
+    isScarcityTightened = true;
+    scarcityTighteningPercent = 2.5;
+
+    breakdowns.push({
+      ruleName: 'POLICY_RULE_SCARCITY_GUARD',
+      passed: true,
+      value: minStock,
+      threshold: 3,
+      message: `⚡ Low Stock Urgency Guard: Only ${minStock} unit(s) remaining in warehouse. Discount ceiling tightened by -${scarcityTighteningPercent}% to protect scarce inventory margin.`
+    });
+  }
+
   for (const item of itemFacts) {
     const itemSubtotal = item.proposedUnitPrice * item.quantity;
     const baseSubtotal = item.basePrice * item.quantity;
@@ -62,7 +81,8 @@ export function evaluateOfferAgainstPolicy(
     }
 
     // 2. Evaluate Margin Floor Rule
-    const marginBreakdown = evaluateMarginRule(item.costPrice, item.proposedUnitPrice, policy.minimumMarginPercent);
+    const effectiveMarginFloor = policy.minimumMarginPercent + (isScarcityTightened ? 1.5 : 0);
+    const marginBreakdown = evaluateMarginRule(item.costPrice, item.proposedUnitPrice, effectiveMarginFloor);
     breakdowns.push(marginBreakdown);
     if (!marginBreakdown.passed) {
       hasMarginViolation = true;
@@ -70,7 +90,8 @@ export function evaluateOfferAgainstPolicy(
     }
 
     // 3. Evaluate Discount Cap Rule
-    const discountBreakdown = evaluateDiscountRule(item.basePrice, item.proposedUnitPrice, policy.maxDiscountPercent);
+    const itemMaxDiscount = Math.max(0, policy.maxDiscountPercent - (isScarcityTightened ? scarcityTighteningPercent : 0));
+    const discountBreakdown = evaluateDiscountRule(item.basePrice, item.proposedUnitPrice, itemMaxDiscount);
     breakdowns.push(discountBreakdown);
     if (!discountBreakdown.passed) {
       hasDiscountViolation = true;
@@ -81,8 +102,8 @@ export function evaluateOfferAgainstPolicy(
     const counterCalc = computeOptimalCounterPrice(
       item.basePrice,
       item.costPrice,
-      policy.maxDiscountPercent,
-      policy.minimumMarginPercent
+      itemMaxDiscount,
+      effectiveMarginFloor
     );
 
     counterItems.push({
@@ -121,7 +142,7 @@ export function evaluateOfferAgainstPolicy(
 
   // If customer is bundling multiple items and combined gross margin is healthy (≥ minimumMargin + 4%), grant +2.5% bonus discount elasticity
   const bundleMarginThreshold = policy.minimumMarginPercent + 4;
-  if (isMultiItemBundle && averageGrossMarginPercent >= bundleMarginThreshold) {
+  if (isMultiItemBundle && averageGrossMarginPercent >= bundleMarginThreshold && !isScarcityTightened) {
     isBundleBonusApplied = true;
     bundleBonusPercent = 2.5;
 
@@ -134,7 +155,12 @@ export function evaluateOfferAgainstPolicy(
     });
   }
 
-  const effectiveMaxDiscount = policy.maxDiscountPercent + (isBundleBonusApplied ? bundleBonusPercent : 0);
+  const effectiveMaxDiscount = Math.max(
+    0,
+    policy.maxDiscountPercent +
+      (isBundleBonusApplied ? bundleBonusPercent : 0) -
+      (isScarcityTightened ? scarcityTighteningPercent : 0)
+  );
 
   // Re-evaluate discount cap against effective bundle threshold if bonus applied
   if (isBundleBonusApplied && hasDiscountViolation && totalEffectiveDiscountPercent <= effectiveMaxDiscount) {
@@ -145,7 +171,12 @@ export function evaluateOfferAgainstPolicy(
   const rules = (policy.rules as Record<string, unknown>) || {};
   const autoApproveDiscountPercent =
     typeof rules['autoApproveDiscountPercent'] === 'number'
-      ? (rules['autoApproveDiscountPercent'] as number) + (isBundleBonusApplied ? bundleBonusPercent : 0)
+      ? Math.max(
+          0,
+          (rules['autoApproveDiscountPercent'] as number) +
+            (isBundleBonusApplied ? bundleBonusPercent : 0) -
+            (isScarcityTightened ? scarcityTighteningPercent : 0)
+        )
       : effectiveMaxDiscount;
 
   const requiresDiscountApproval =
@@ -183,6 +214,8 @@ export function evaluateOfferAgainstPolicy(
     reasons.push(
       isBundleBonusApplied
         ? `Offer complies with merchant policy and includes a +${bundleBonusPercent}% multi-product bundle discount bonus.`
+        : isScarcityTightened
+        ? `Offer complies with tightened inventory scarcity threshold (${scarcityTighteningPercent}% guard applied).`
         : 'Offer complies with all active discount, margin, and order threshold policies.'
     );
   }
@@ -206,6 +239,8 @@ export function evaluateOfferAgainstPolicy(
     averageGrossMarginPercent,
     isBundleBonusApplied,
     bundleBonusPercent: isBundleBonusApplied ? bundleBonusPercent : 0,
+    isScarcityTightened,
+    scarcityTighteningPercent: isScarcityTightened ? scarcityTighteningPercent : 0,
     counterOffer:
       decision === 'COUNTER'
         ? {

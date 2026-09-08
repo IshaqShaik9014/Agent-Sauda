@@ -50,6 +50,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-024 Production Docker Containerization]]: Multi-stage Docker builds, Next.js 15 standalone optimization (~120MB), non-root users, and Docker Compose orchestration.
 * [[ADR-025 Real-Time SSE Chat Streaming and HMAC Multi-Channel HITL Notifications]]: Server-Sent Events (SSE) token streaming, live tool telemetry, and SHA-256 HMAC 1-click mobile manager approvals.
 * [[ADR-026 Merchant Knowledge Document Upload, Buyer OTP Verification, Bundle Optimization, and Automated Razorpay Refunds]]: Drag-and-drop document auto-chunking in pgvector RAG, verified buyer OTP modal, cross-basket bundle margin pooling (+2.5% elasticity), and live Razorpay payment refunds with stock replenishment.
+* [[ADR-027 Dynamic Scarcity Guard, Voice Negotiation, Multi-Currency, and Merchant Simulation Sandbox]]: Low inventory urgency guard, Web Speech API hands-free voice negotiation, multi-currency conversion, and multi-agent simulation sandbox (`/admin/simulator`).
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -73,6 +74,9 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 19 Performance Optimization]]: Pluggable Redis & Memory caching, composite indexes, and sub-millisecond lookups.
 * [[Phase 20 Security Hardening]]: Rate limiting, brute-force defense, Helmet shielding, and XSS sanitization.
 * [[Phase 21 Production Docker]]: Multi-stage Docker containerization, Next.js standalone optimization, and Docker Compose orchestration.
+* [[Phase 22 Real-Time SSE Chat Streaming and HITL Webhooks]]: Server-Sent Events chat token streaming, live tool badges, and HMAC webhook alerts.
+* [[Phase 23 RAG Document Upload, OTP Verification, and Refunds]]: Drag-and-drop auto-chunking RAG ingestion, buyer OTP verification, bundle margin elasticity, and automated Razorpay refunds.
+* [[Phase 24 Dynamic Scarcity Guard, Voice Negotiation, and AI Simulation Sandbox]]: Low inventory urgency guard, native Web Speech API voice bargaining, multi-currency formatting, and `/admin/simulator` stress-testing workbench.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Security Hardening and Rate Limiting]]: Perimeter defense, distributed rate limiting, and malicious payload sanitization.

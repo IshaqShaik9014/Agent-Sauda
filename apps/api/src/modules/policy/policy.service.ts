@@ -132,12 +132,15 @@ export class PolicyService {
   ): Promise<OfferEvaluationResult> {
     const policy = await this.getMerchantPolicy(merchantId);
 
-    // Fetch authoritative basePrice and costPrice from database
+    // Fetch authoritative basePrice, costPrice, and available inventory from database
     const productIds = input.items.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds },
         merchantId
+      },
+      include: {
+        inventory: true
       }
     });
 
@@ -149,13 +152,16 @@ export class PolicyService {
         throw new Error(`Product ${item.productId} not found in merchant catalog.`);
       }
 
+      const totalAvailableUnits = product.inventory?.reduce((sum, inv) => sum + inv.availableUnits, 0) ?? 10;
+
       return {
         productId: item.productId,
         variantId: item.variantId,
         quantity: item.quantity,
         proposedUnitPrice: item.proposedUnitPrice,
         basePrice: product.basePrice,
-        costPrice: product.costPrice
+        costPrice: product.costPrice,
+        availableStock: totalAvailableUnits
       };
     });
 

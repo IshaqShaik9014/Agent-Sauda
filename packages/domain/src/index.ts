@@ -146,7 +146,8 @@ export const OfferEvaluationItemSchema = z.object({
   quantity: z.number().int().positive('Quantity must be at least 1'),
   proposedUnitPrice: z.number().positive('Proposed unit price must be positive'),
   basePrice: z.number().positive().optional(),
-  costPrice: z.number().nonnegative().optional()
+  costPrice: z.number().nonnegative().optional(),
+  availableStock: z.number().int().nonnegative().optional()
 });
 export type OfferEvaluationItem = z.infer<typeof OfferEvaluationItemSchema>;
 
@@ -185,6 +186,8 @@ export const OfferEvaluationResultSchema = z.object({
   averageGrossMarginPercent: z.number(),
   isBundleBonusApplied: z.boolean().optional(),
   bundleBonusPercent: z.number().optional(),
+  isScarcityTightened: z.boolean().optional(),
+  scarcityTighteningPercent: z.number().optional(),
   counterOffer: z
     .object({
       items: z.array(CounterOfferItemSchema),
@@ -780,6 +783,37 @@ export const HealthResponseSchema = z.object({
   environment: z.string()
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
+
+// ============================================================================
+// Multi-Currency & Regional FX Schemas & Utilities
+// ============================================================================
+export const SupportedCurrencyEnum = z.enum(['INR', 'USD', 'EUR', 'GBP', 'AED']);
+export type SupportedCurrency = z.infer<typeof SupportedCurrencyEnum>;
+
+export interface CurrencyRate {
+  currency: SupportedCurrency;
+  symbol: string;
+  label: string;
+  rateToINR: number;
+  rateFromINR: number;
+}
+
+export const DEFAULT_EXCHANGE_RATES: Record<SupportedCurrency, CurrencyRate> = {
+  INR: { currency: 'INR', symbol: '₹', label: 'INR (₹)', rateToINR: 1.0, rateFromINR: 1.0 },
+  USD: { currency: 'USD', symbol: '$', label: 'USD ($)', rateToINR: 87.0, rateFromINR: 1 / 87.0 },
+  EUR: { currency: 'EUR', symbol: '€', label: 'EUR (€)', rateToINR: 94.0, rateFromINR: 1 / 94.0 },
+  GBP: { currency: 'GBP', symbol: '£', label: 'GBP (£)', rateToINR: 110.0, rateFromINR: 1 / 110.0 },
+  AED: { currency: 'AED', symbol: 'AED ', label: 'AED (د.إ)', rateToINR: 23.7, rateFromINR: 1 / 23.7 }
+};
+
+export function formatCurrencyAmount(amountInINR: number, currency: SupportedCurrency = 'INR'): string {
+  const rate = DEFAULT_EXCHANGE_RATES[currency] || DEFAULT_EXCHANGE_RATES.INR;
+  const converted = amountInINR * rate.rateFromINR;
+  if (currency === 'INR') {
+    return `₹${Math.round(converted).toLocaleString('en-IN')}`;
+  }
+  return `${rate.symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 // ============================================================================
 // Agent Sauda B2B SDK Client

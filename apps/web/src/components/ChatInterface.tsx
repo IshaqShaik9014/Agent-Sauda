@@ -17,11 +17,17 @@ import {
   Mail,
   KeyRound,
   BadgeCheck,
-  X
+  X,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Globe
 } from 'lucide-react';
 import { OfferCard } from './OfferCard';
 import { api, type PublicCatalogProduct } from '../lib/api';
-import type { OfferResponse } from '@agent-sauda/domain';
+import type { OfferResponse, SupportedCurrency } from '@agent-sauda/domain';
+import { DEFAULT_EXCHANGE_RATES, formatCurrencyAmount } from '@agent-sauda/domain';
 
 export interface ChatMessageItem {
   id: string;
@@ -77,6 +83,74 @@ export function ChatInterface({
   const [enteredOtp, setEnteredOtp] = useState('');
   const [mockGeneratedOtp, setMockGeneratedOtp] = useState('849201');
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
+  // Multi-Currency & Voice Negotiation State
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>('INR');
+  const [isSpeechEnabled, setIsSpeechEnabled] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
+  const speakText = (text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*#_`]/g, '').replace(/https?:\/\/\S+/g, '');
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
+  };
+
+  const toggleVoiceRecognition = () => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition =
+      (window as unknown as { SpeechRecognition?: any }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setInputValue(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to initialize speech recognition:', err);
+      setIsListening(false);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('agent_sauda_buyer_profile');
@@ -291,6 +365,10 @@ export function ChatInterface({
             : msg
         )
       );
+
+      if (isSpeechEnabled && accumulatedText) {
+        speakText(accumulatedText);
+      }
     } catch (err: unknown) {
       console.warn('[ChatInterface] Streaming fallback to standard REST:', err);
       // Fallback to standard chat endpoint if streaming interrupted
@@ -322,6 +400,10 @@ export function ChatInterface({
             timestamp: new Date()
           }
         ]);
+
+        if (isSpeechEnabled && fallbackRes.message) {
+          speakText(fallbackRes.message);
+        }
       } catch (fallbackErr) {
         setMessages((prev) => [
           ...prev.filter((m) => m.id !== agentMessageId),
@@ -395,14 +477,14 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto w-full px-2 sm:px-4 py-3 antialiased">
-      {/* Top Buyer Identity Banner */}
-      <div className="mb-2 flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-950/70 px-3.5 py-2 text-xs backdrop-blur-sm shadow-sm">
+      {/* Top Buyer Identity & FX / Voice Settings Banner */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/80 bg-slate-950/70 px-3.5 py-2 text-xs backdrop-blur-sm shadow-sm">
         <div className="flex items-center gap-2">
           {buyerProfile.isVerified ? (
             <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
               <BadgeCheck className="h-4 w-4 text-emerald-400 shrink-0" />
               <span>Verified Buyer: {buyerProfile.name}</span>
-              <span className="text-[10px] text-zinc-500 font-normal">({buyerProfile.phone})</span>
+              <span className="text-[10px] text-zinc-500 font-normal hidden sm:inline">({buyerProfile.phone})</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-zinc-400">
@@ -412,20 +494,53 @@ export function ChatInterface({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setOtpStep('INPUT');
-            setIsOtpModalOpen(true);
-          }}
-          className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
-            buyerProfile.isVerified
-              ? 'border border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white'
-              : 'border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20'
-          }`}
-        >
-          {buyerProfile.isVerified ? 'Edit Identity' : '⚡ Verify Identity (OTP)'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Currency Switcher */}
+          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1">
+            <Globe className="h-3 w-3 text-indigo-400" />
+            <select
+              value={selectedCurrency}
+              onChange={(e) => setSelectedCurrency(e.target.value as SupportedCurrency)}
+              className="bg-transparent text-[11px] font-semibold text-slate-200 focus:outline-none cursor-pointer"
+            >
+              <option value="INR" className="bg-slate-900 text-white">INR (₹)</option>
+              <option value="USD" className="bg-slate-900 text-white">USD ($)</option>
+              <option value="EUR" className="bg-slate-900 text-white">EUR (€)</option>
+              <option value="GBP" className="bg-slate-900 text-white">GBP (£)</option>
+              <option value="AED" className="bg-slate-900 text-white">AED (د.إ)</option>
+            </select>
+          </div>
+
+          {/* Text-to-Speech Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsSpeechEnabled(!isSpeechEnabled)}
+            title={isSpeechEnabled ? 'Mute AI Voice Responses' : 'Enable AI Voice Responses (TTS)'}
+            className={`p-1.5 rounded-lg border transition-all ${
+              isSpeechEnabled
+                ? 'border-indigo-500/50 bg-indigo-500/20 text-indigo-300'
+                : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {isSpeechEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+          </button>
+
+          {/* OTP Verify Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setOtpStep('INPUT');
+              setIsOtpModalOpen(true);
+            }}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+              buyerProfile.isVerified
+                ? 'border border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                : 'border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20'
+            }`}
+          >
+            {buyerProfile.isVerified ? 'Edit Identity' : '⚡ Verify Identity (OTP)'}
+          </button>
+        </div>
       </div>
 
       {/* Messages Stream */}
@@ -468,6 +583,7 @@ export function ChatInterface({
                 {msg.offer && (
                   <OfferCard
                     offer={msg.offer}
+                    currency={selectedCurrency}
                     onAccept={handleAcceptOffer}
                     onReject={handleRejectOffer}
                     onProceedToCheckout={onProceedToCheckout}
@@ -531,14 +647,30 @@ export function ChatInterface({
         }}
         className="flex items-center gap-2 pt-1"
       >
+        {/* Voice Speech-to-Text Microphone Button */}
+        <button
+          type="button"
+          onClick={toggleVoiceRecognition}
+          title={isListening ? 'Stop Voice Dictation' : 'Start Voice Dictation'}
+          className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-all ${
+            isListening
+              ? 'border-red-500 bg-red-500/20 text-red-400 shadow-lg shadow-red-500/30 animate-pulse'
+              : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-indigo-500/50 hover:text-indigo-300'
+          }`}
+        >
+          {isListening ? <Mic className="h-4 w-4 animate-bounce text-red-400" /> : <Mic className="h-4 w-4" />}
+        </button>
+
         <div className="relative flex-1">
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask about products, return policies, or negotiate a price..."
+            placeholder={isListening ? '🎙️ Listening to your voice offer...' : 'Ask about products, return policies, or negotiate a price...'}
             disabled={isLoading}
-            className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition shadow-inner"
+            className={`w-full rounded-2xl border bg-slate-950 px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner ${
+              isListening ? 'border-red-500/60 ring-1 ring-red-500/40' : 'border-slate-800 focus:border-indigo-500'
+            }`}
           />
         </div>
 

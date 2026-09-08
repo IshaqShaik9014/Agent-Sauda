@@ -18,7 +18,8 @@ import {
   ChevronRight,
   ExternalLink,
   BookOpen,
-  Code2
+  Code2,
+  FlaskConical
 } from 'lucide-react';
 import { AgentSaudaLogo } from './AgentSaudaLogo';
 
@@ -85,6 +86,11 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
       href: '/admin/approvals',
       icon: CheckSquare,
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined
+    },
+    {
+      name: 'AI Simulator',
+      href: '/admin/simulator',
+      icon: FlaskConical
     },
     {
       name: 'Orders & Dispatch',

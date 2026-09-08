@@ -15,7 +15,10 @@ import {
   BellRing,
   Send,
   ExternalLink,
-  Smartphone
+  Smartphone,
+  Code2,
+  Copy,
+  X
 } from 'lucide-react';
 
 function ApprovalsContent() {
@@ -31,6 +34,7 @@ function ApprovalsContent() {
   const [webhookUrl, setWebhookUrl] = useState<string>('');
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isPayloadModalOpen, setIsPayloadModalOpen] = useState(false);
 
   const loadApprovals = async (refresh = false) => {
     const activeMerchant = auth.getActiveMerchant();
@@ -368,6 +372,14 @@ function ApprovalsContent() {
             {isSendingTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             <span>Send Test Alert</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPayloadModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-all"
+          >
+            <span>Inspect Webhook Payloads</span>
+          </button>
         </div>
 
         {testResult && (
@@ -391,6 +403,85 @@ function ApprovalsContent() {
           </ul>
         </div>
       </div>
+
+      {/* Webhook Payload Inspector Modal */}
+      {isPayloadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <Code2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Manager Webhook Payload Inspector</h3>
+                  <p className="text-[11px] text-zinc-400">
+                    Live BlockKit JSON & WhatsApp formatted alert structure dispatched upon approval trigger
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPayloadModalOpen(false)}
+                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              <div>
+                <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+                  1. Slack / Discord Webhook BlockKit JSON Payload
+                </span>
+                <pre className="rounded-xl bg-zinc-900 border border-zinc-800 p-3 text-[11px] font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+{JSON.stringify(
+  {
+    event: 'OFFER_APPROVAL_REQUIRED',
+    merchantId: 'merchant-abc-furniture',
+    offerId: 'off_72819a82',
+    offerNumber: 'OFF-1042',
+    customer: { name: 'Verified Wholesaler', phone: '+91 98765 43210' },
+    items: [{ title: 'Ergonomic Study Chair', quantity: 5, unitPrice: 6000, agreedPrice: 5580 }],
+    totals: { baseTotal: 30000, payableTotal: 27900, discountPercent: 7.0, grossMarginPercent: 19.3 },
+    quickApproveUrl: 'http://localhost:3000/admin/approvals?quickApprove=off_72819a82&token=sha256_hmac_verified_token',
+    quickRejectUrl: 'http://localhost:3000/admin/approvals?quickReject=off_72819a82&token=sha256_hmac_verified_token'
+  },
+  null,
+  2
+)}
+                </pre>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+                  2. WhatsApp Rich Alert Template Text
+                </span>
+                <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-3 text-[11px] font-mono text-zinc-200 leading-relaxed whitespace-pre-wrap">
+{`🚨 *Agent Sauda: High-Value Quote Approval Required*
+• Store: ABC Furniture
+• Customer: Ishaq Shaik (+91 98765 43210)
+• Item: 5x Ergonomic Study Chair
+• Proposed Total: ₹27,900 (7.0% Discount | 19.3% Margin)
+
+👉 Click to 1-Click Approve (Valid 15m):
+http://localhost:3000/admin/approvals?quickApprove=off_72819a82&token=a8f93bc1e4...`}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPayloadModalOpen(false)}
+                className="rounded-xl bg-zinc-800 hover:bg-zinc-700 px-4 py-2 text-xs font-semibold text-white transition"
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

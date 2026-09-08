@@ -276,9 +276,10 @@ You can explore every part of the system live:
 
 | Portal | Local URL | What You Can Do |
 | :--- | :--- | :--- |
+| **🧪 AI Simulation Sandbox** | `http://localhost:3000/admin/simulator` | Stress-test pricing policies against simulated buyer personas (Wholesaler, Student, Corporate, Adversarial Injection Bot). |
 | **📚 Knowledge Base & RAG** | `http://localhost:3000/admin/knowledge` | Drag-and-drop PDF/Markdown policies, inspect live auto-chunking, and test semantic search. |
-| **💬 Storefront Negotiation** | `http://localhost:3000/negotiate/abc-furniture` | Experience token streaming chat, live tool badges, buyer OTP verification, and dynamic quote cards. |
-| **🧑‍💼 HITL Approvals Queue** | `http://localhost:3000/admin/approvals` | Configure Slack/Discord webhooks, test alert pings, and review quotations with margin analytics. |
+| **💬 Storefront Negotiation** | `http://localhost:3000/negotiate/abc-furniture` | Experience token streaming chat, Web Speech voice input, TTS readout, multi-currency switcher, and dynamic quote cards. |
+| **🧑‍💼 HITL Approvals Queue** | `http://localhost:3000/admin/approvals` | Configure Slack/Discord webhooks, test alert pings, inspect BlockKit JSON payloads, and review quotations. |
 | **📦 Order Management & Refunds** | `http://localhost:3000/admin/orders` | Manage packaging dispatch, track shipments, and execute automated Razorpay instant refunds. |
 | **📊 Merchant Overview & KPIs** | `http://localhost:3000/admin` | View GMV, realized profit margins, AI conversion rates, and live payments ledger. |
 | **📦 Live Order Tracker** | `http://localhost:3000/orders/[id]/track` | Track orders across 5 delivery milestones (`PLACED` ➔ `CONFIRMED` ➔ `PACKED` ➔ `SHIPPED` ➔ `DELIVERED`). |
@@ -351,7 +352,7 @@ npx tsx scripts/benchmark-performance.ts
 
 ---
 
-## 🗺️ All 23 Project Phases Completed
+## 🗺️ All 24 Project Phases Completed
 
 Every phase planned for Agent Sauda has been completed, tested, and pushed:
 
@@ -380,6 +381,7 @@ Every phase planned for Agent Sauda has been completed, tested, and pushed:
 | **21**| **Production Docker** | Multi-stage Dockerfiles, standalone Next.js (~120MB), Compose setup | ✅ |
 | **22**| **SSE Chat & HITL Webhooks** | Server-Sent Events chat streaming, tool badges, Slack/WhatsApp HMAC approvals | ✅ |
 | **23**| **RAG Upload & Refunds** | Drag-drop auto-chunking RAG, buyer OTP verification, bundle bonus, Razorpay refunds | ✅ |
+| **24**| **Simulation Sandbox & Voice Negotiation** | Low-stock urgency guard, native Web Speech STT/TTS, multi-currency formatting, `/admin/simulator` stress-testing workbench | ✅ |
 
 ---
 
