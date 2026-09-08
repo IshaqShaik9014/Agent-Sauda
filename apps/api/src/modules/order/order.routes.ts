@@ -7,6 +7,7 @@ import {
   ListOrdersQuerySchema
 } from './order.schema.js';
 import { orderService } from './order.service.js';
+import { paymentService } from '../payment/payment.service.js';
 import { authenticate, requireMerchantAccess } from '../../middleware/auth.middleware.js';
 
 const ErrorResponseSchema = {
@@ -640,6 +641,103 @@ export const orderRoutes: FastifyPluginAsync = async (fastify) => {
           success: false,
           error: {
             code: error.code || 'ORDER_CANCELLATION_FAILED',
+            message: error.message,
+            statusCode,
+            requestId: request.id
+          }
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/merchants/:merchantId/orders/:orderId/refund
+   * Execute Razorpay payment refund, restock inventory, and transition order
+   */
+  fastify.post(
+    '/merchants/:merchantId/orders/:orderId/refund',
+    {
+      preHandler: [authenticate, requireMerchantAccess()],
+      schema: {
+        tags: ['Merchant Order Management'],
+        summary: 'Process Razorpay Payment Refund',
+        description: 'Initiates a payment refund via Razorpay, restocks warehouse inventory, and transitions order status.',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['merchantId', 'orderId'],
+          properties: {
+            merchantId: { type: 'string', format: 'uuid' },
+            orderId: { type: 'string', format: 'uuid' }
+          }
+        },
+        body: {
+          type: 'object',
+          required: ['reason'],
+          properties: {
+            amount: { type: 'number', minimum: 1 },
+            reason: { type: 'string', example: 'Product returned in original condition within 7-day policy' }
+          }
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+              refund: {
+                type: 'object',
+                properties: {
+                  refundId: { type: 'string' },
+                  amount: { type: 'number' },
+                  currency: { type: 'string' },
+                  status: { type: 'string' }
+                }
+              },
+              order: OrderResponseSchema
+            }
+          },
+          400: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const { merchantId, orderId } = request.params as { merchantId: string; orderId: string };
+      const body = (request.body || {}) as { amount?: number; reason: string };
+
+      if (!body.reason || !body.reason.trim()) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Refund reason is required.',
+            statusCode: 400,
+            requestId: request.id
+          }
+        });
+      }
+
+      try {
+        const result = await paymentService.processRefund(
+          merchantId,
+          orderId,
+          request.user.userId,
+          {
+            amount: body.amount,
+            reason: body.reason.trim()
+          }
+        );
+        return reply.status(200).send(result);
+      } catch (err: unknown) {
+        const error = err as Error & { statusCode?: number; code?: string };
+        const statusCode = (error.statusCode || 500) as 400 | 403 | 404 | 500;
+        return reply.status(statusCode).send({
+          success: false,
+          error: {
+            code: error.code || 'REFUND_PROCESSING_FAILED',
             message: error.message,
             statusCode,
             requestId: request.id

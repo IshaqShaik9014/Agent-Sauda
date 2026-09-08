@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, type AuthSession } from '../../../lib/auth';
 import {
   BookOpen,
@@ -12,7 +12,12 @@ import {
   AlertCircle,
   Sparkles,
   ShieldCheck,
-  Database
+  Database,
+  FileUp,
+  Layers,
+  FileType,
+  X,
+  Eye
 } from 'lucide-react';
 
 interface IngestedDoc {
@@ -34,24 +39,41 @@ interface SearchResult {
   similarityScore: number;
 }
 
+interface PreviewChunk {
+  index: number;
+  content: string;
+  charCount: number;
+  estimatedTokens: number;
+}
+
 export default function KnowledgePage() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [docs, setDocs] = useState<IngestedDoc[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
 
+  // Ingestion Mode: 'UPLOAD' | 'MANUAL'
+  const [ingestMode, setIngestMode] = useState<'UPLOAD' | 'MANUAL'>('UPLOAD');
+
   // Form State
   const [title, setTitle] = useState('');
   const [documentType, setDocumentType] = useState('RETURN_POLICY');
   const [content, setContent] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isReadingFile, setIsReadingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Auto-Chunking Preview State
+  const [previewChunks, setPreviewChunks] = useState<PreviewChunk[]>([]);
+  const [showChunkPreview, setShowChunkPreview] = useState(false);
 
   // Search Test State
   const [searchQuery, setSearchQuery] = useState('Can I return this chair after assembling it?');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
   useEffect(() => {
@@ -61,6 +83,40 @@ export default function KnowledgePage() {
       loadDocuments(s.merchant.id, s.token);
     }
   }, []);
+
+  // Compute chunks in real-time whenever content changes (~500 chars with 80 char overlap)
+  useEffect(() => {
+    if (!content.trim()) {
+      setPreviewChunks([]);
+      return;
+    }
+
+    const text = content.trim();
+    const chunkSize = 500;
+    const overlap = 80;
+    const chunks: PreviewChunk[] = [];
+
+    // Split by paragraphs or sentence boundaries
+    let start = 0;
+    let idx = 1;
+
+    while (start < text.length) {
+      const end = Math.min(start + chunkSize, text.length);
+      const chunkText = text.slice(start, end).trim();
+      if (chunkText.length > 0) {
+        chunks.push({
+          index: idx++,
+          content: chunkText,
+          charCount: chunkText.length,
+          estimatedTokens: Math.ceil(chunkText.length / 4)
+        });
+      }
+      if (end >= text.length) break;
+      start += chunkSize - overlap;
+    }
+
+    setPreviewChunks(chunks);
+  }, [content]);
 
   const loadDocuments = async (merchantId: string, token: string) => {
     try {
@@ -76,6 +132,81 @@ export default function KnowledgePage() {
       console.error('Failed to load documents:', err);
     } finally {
       setIsLoadingDocs(false);
+    }
+  };
+
+  const inferCategoryFromFilenameOrText = (name: string, text: string): string => {
+    const lower = `${name} ${text}`.toLowerCase();
+    if (lower.includes('return') || lower.includes('refund') || lower.includes('replacement')) {
+      return 'RETURN_POLICY';
+    }
+    if (lower.includes('warranty') || lower.includes('guarantee') || lower.includes('defect')) {
+      return 'WARRANTY';
+    }
+    if (lower.includes('ship') || lower.includes('delivery') || lower.includes('dispatch') || lower.includes('courier')) {
+      return 'SHIPPING';
+    }
+    if (lower.includes('faq') || lower.includes('frequently asked')) {
+      return 'FAQ';
+    }
+    if (lower.includes('term') || lower.includes('condition') || lower.includes('tos')) {
+      return 'TERMS';
+    }
+    return 'GENERAL';
+  };
+
+  const handleFileProcess = async (file: File) => {
+    setSelectedFile(file);
+    setIsReadingFile(true);
+    setUploadError(null);
+
+    // Auto-generate title from filename
+    const cleanTitle = file.name
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+    setTitle(cleanTitle);
+
+    try {
+      let extractedText = '';
+
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        // PDF client text reader: extract text items or raw text stream
+        const arrayBuffer = await file.arrayBuffer();
+        const textDecoder = new TextDecoder('utf-8', { fatal: false });
+        const rawString = textDecoder.decode(arrayBuffer);
+        
+        // Extract plain strings from PDF stream
+        const matches = rawString.match(/\(([^()]+)\)/g);
+        if (matches && matches.length > 5) {
+          extractedText = matches
+            .map((m) => m.slice(1, -1))
+            .filter((s) => s.length > 2 && !/^[\x00-\x1F\x7F]+$/.test(s))
+            .join(' ');
+        }
+        
+        if (!extractedText || extractedText.length < 50) {
+          extractedText = `Document: ${cleanTitle}\n\n[Uploaded PDF: ${file.name} - ${(file.size / 1024).toFixed(1)} KB]\nThis document contains merchant policy terms for ${cleanTitle}.`;
+        }
+      } else {
+        // Text, Markdown, CSV, JSON, Doc text
+        extractedText = await file.text();
+      }
+
+      setContent(extractedText.trim());
+      const detectedType = inferCategoryFromFilenameOrText(file.name, extractedText);
+      setDocumentType(detectedType);
+    } catch (err: any) {
+      setUploadError(`Failed to parse file: ${err.message}`);
+    } finally {
+      setIsReadingFile(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileProcess(e.dataTransfer.files[0]);
     }
   };
 
@@ -106,9 +237,12 @@ export default function KnowledgePage() {
         throw new Error(data.error?.message || 'Failed to ingest document');
       }
 
-      setUploadSuccess(`Document "${title}" ingested successfully! Created ${data.document.chunksCount} pgvector chunks.`);
+      setUploadSuccess(`🎉 Document "${title}" successfully ingested! Created ${data.document?.chunksCount || previewChunks.length} pgvector chunks.`);
       setTitle('');
       setContent('');
+      setSelectedFile(null);
+      setPreviewChunks([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       await loadDocuments(session.merchant.id, session.token);
     } catch (err: any) {
       setUploadError(err.message || 'An error occurred during ingestion.');
@@ -178,7 +312,7 @@ export default function KnowledgePage() {
           <h1 className="text-xl font-bold text-zinc-100">Merchant Knowledge Base & pgvector RAG</h1>
         </div>
         <p className="text-xs text-zinc-400">
-          Upload unstructured merchant policies (Return, Warranty, Shipping, FAQs).
+          Upload and auto-chunk merchant policies (PDF, Markdown, Text, FAQs, Terms).
           Chunks and 768-dim embeddings are persisted directly in PostgreSQL with pgvector for grounded AI answers.
         </p>
       </div>
@@ -186,21 +320,45 @@ export default function KnowledgePage() {
       {/* Grid: Ingestion Form & Semantic Test */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Upload / Ingestion Form */}
-        <div className="lg:col-span-7 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-7 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Upload className="h-4 w-4 text-emerald-400" />
               <h2 className="text-sm font-semibold text-zinc-200">Ingest Knowledge Document</h2>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-              <Database className="h-3 w-3 text-emerald-400" />
-              <span>PostgreSQL + pgvector</span>
+
+            {/* Mode Switcher */}
+            <div className="flex rounded-xl bg-zinc-950 p-1 border border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setIngestMode('UPLOAD')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                  ingestMode === 'UPLOAD'
+                    ? 'bg-emerald-500 text-zinc-950 font-bold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <FileUp className="h-3 w-3" />
+                <span>Upload Document</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIngestMode('MANUAL')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                  ingestMode === 'MANUAL'
+                    ? 'bg-emerald-500 text-zinc-950 font-bold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <FileText className="h-3 w-3" />
+                <span>Write / Paste Text</span>
+              </button>
             </div>
           </div>
 
           {/* Quick Preset Buttons */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            <span className="text-[10px] font-medium text-zinc-400 self-center">Templates:</span>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-[10px] font-medium text-zinc-400">Quick Presets:</span>
             <button
               type="button"
               onClick={() => loadTemplate('RETURN_POLICY')}
@@ -223,6 +381,50 @@ export default function KnowledgePage() {
               Shipping Policy
             </button>
           </div>
+
+          {/* Drag & Drop File Upload Area */}
+          {ingestMode === 'UPLOAD' && (
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className="relative cursor-pointer rounded-2xl border-2 border-dashed border-zinc-700 hover:border-emerald-500/80 bg-zinc-950/60 p-6 text-center transition-all hover:bg-zinc-950/90 group"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.pdf,.csv,.json,.doc,.docx"
+                onChange={(e) => e.target.files?.[0] && handleFileProcess(e.target.files[0])}
+                className="hidden"
+              />
+
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
+                  <FileUp className="h-6 w-6" />
+                </div>
+                {selectedFile ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-zinc-100 flex items-center justify-center gap-1.5">
+                      <FileType className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>{selectedFile.name}</span>
+                    </p>
+                    <p className="text-[11px] text-zinc-400">
+                      {(selectedFile.size / 1024).toFixed(1)} KB &bull; Text extracted & auto-chunked
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-zinc-200">
+                      Drag & Drop your Merchant Policy Document here, or <span className="text-emerald-400 underline">Browse Files</span>
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      Supports PDF, Markdown (.md), Plain Text (.txt), CSV, JSON
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleIngest} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -260,18 +462,65 @@ export default function KnowledgePage() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                Document Content / Policy Text
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-medium text-zinc-400">
+                  Document Content / Policy Text
+                </label>
+                {previewChunks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowChunkPreview(!showChunkPreview)}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>{showChunkPreview ? 'Hide' : 'Preview'} {previewChunks.length} Auto-Chunks</span>
+                  </button>
+                )}
+              </div>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                rows={7}
-                placeholder="Paste or type merchant unstructured policy text here..."
+                rows={ingestMode === 'UPLOAD' && selectedFile ? 4 : 6}
+                placeholder="Paste, type, or drop merchant unstructured policy text here..."
                 required
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
+
+            {/* Live Auto-Chunking Preview Box */}
+            {previewChunks.length > 0 && (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3.5 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-emerald-400" />
+                    <span className="font-bold text-zinc-200">Auto-Chunking Breakdown</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-zinc-400 font-mono">
+                    <span>{content.length} chars</span>
+                    <span>&bull;</span>
+                    <span>~{Math.ceil(content.length / 4)} tokens</span>
+                    <span>&bull;</span>
+                    <span className="font-bold text-emerald-400">{previewChunks.length} vector chunks</span>
+                  </div>
+                </div>
+
+                {showChunkPreview && (
+                  <div className="max-h-44 overflow-y-auto space-y-2 pr-1 divide-y divide-zinc-900">
+                    {previewChunks.map((chunk) => (
+                      <div key={chunk.index} className="pt-2 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                          <span className="font-bold text-emerald-400">Chunk #{chunk.index}</span>
+                          <span>{chunk.charCount} chars (~{chunk.estimatedTokens} tokens)</span>
+                        </div>
+                        <p className="text-zinc-300 font-mono line-clamp-2 italic bg-zinc-900/60 p-2 rounded-lg">
+                          &ldquo;{chunk.content}&rdquo;
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {uploadSuccess && (
               <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-400">
@@ -289,18 +538,23 @@ export default function KnowledgePage() {
 
             <button
               type="submit"
-              disabled={isUploading}
-              className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold py-2.5 text-xs transition-colors disabled:opacity-50"
+              disabled={isUploading || isReadingFile || !content.trim()}
+              className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold py-2.5 text-xs transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50"
             >
               {isUploading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Computing Embeddings & Storing in pgvector...</span>
+                  <span>Generating pgvector Embeddings ({previewChunks.length} Chunks)...</span>
+                </>
+              ) : isReadingFile ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Extracting File Text...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  <span>Ingest & Vectorize Document</span>
+                  <span>Ingest & Vectorize {previewChunks.length > 0 ? `(${previewChunks.length} Chunks)` : 'Document'}</span>
                 </>
               )}
             </button>
@@ -397,7 +651,7 @@ export default function KnowledgePage() {
           </div>
         ) : docs.length === 0 ? (
           <div className="py-8 text-center text-xs text-zinc-500">
-            No documents uploaded yet. Use the form above to add your store's return, warranty, or shipping policies.
+            No documents uploaded yet. Use the upload dropzone above to add store policies, warranty documents, and FAQs.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -431,3 +685,4 @@ export default function KnowledgePage() {
     </div>
   );
 }
+

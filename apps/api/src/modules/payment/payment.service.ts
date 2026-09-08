@@ -203,6 +203,116 @@ export class PaymentService {
   }
 
   /**
+   * Processes a full or partial refund for a paid order via Razorpay API.
+   * Restocks inventory and transitions Order and Payment state machine.
+   */
+  async processRefund(
+    merchantId: string,
+    orderId: string,
+    actorId: string | undefined,
+    input: { amount?: number; reason: string }
+  ): Promise<{ success: boolean; message: string; refund: any; order: any }> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        payments: true,
+        items: true
+      }
+    });
+
+    if (!order || order.merchantId !== merchantId) {
+      const error = new Error(`Order ${orderId} not found or access denied.`) as Error & { statusCode?: number; code?: string };
+      error.statusCode = 404;
+      error.code = 'ORDER_NOT_FOUND';
+      throw error;
+    }
+
+    if (order.status !== 'PAID' && order.status !== 'COMPLETED') {
+      const error = new Error(`Cannot refund order in "${order.status}" status. Only PAID or COMPLETED orders can be refunded.`) as Error & { statusCode?: number; code?: string };
+      error.statusCode = 400;
+      error.code = 'INVALID_REFUND_STATE';
+      throw error;
+    }
+
+    // Find captured payment
+    const payment = order.payments.find((p) => p.status === 'CAPTURED') || order.payments[0];
+    const razorpayPaymentId = payment?.razorpayPaymentId || `pay_mock_${Date.now().toString(36)}`;
+
+    const refundAmount = input.amount || order.totalAmount;
+    const refundAmountInPaise = Math.round(refundAmount * 100);
+
+    // Call Razorpay refund driver
+    const refundResult = await this.driver.refundPayment(razorpayPaymentId, refundAmountInPaise, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      reason: input.reason
+    });
+
+    // Execute atomic state transition & stock restock
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      // 1. Update Payment status if payment record exists
+      if (payment) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'REFUNDED' }
+        });
+      }
+
+      // 2. Restock Inventory units
+      for (const item of order.items) {
+        await tx.inventory.updateMany({
+          where: {
+            merchantId,
+            productId: item.productId,
+            variantId: item.variantId || null
+          },
+          data: {
+            availableUnits: { increment: item.quantity }
+          }
+        });
+      }
+
+      // 3. Update Order status
+      const ord = await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'CANCELLED',
+          notes: `${order.notes ? order.notes + ' | ' : ''}Refunded ₹${refundAmount.toLocaleString('en-IN')}: ${input.reason} (Refund ID: ${refundResult.refundId})`
+        },
+        include: { items: true, payments: true }
+      });
+
+      // 4. Record Audit Event
+      await tx.auditEvent.create({
+        data: {
+          merchantId,
+          entityType: 'ORDER',
+          entityId: order.id,
+          action: 'ORDER_REFUNDED',
+          actorType: actorId ? 'USER' : 'SYSTEM',
+          actorId: actorId || 'manager',
+          reason: `Processed Razorpay refund of ₹${refundAmount.toLocaleString('en-IN')}: ${input.reason}`,
+          metadata: {
+            refundId: refundResult.refundId,
+            paymentId: payment?.id,
+            razorpayPaymentId,
+            amount: refundAmount
+          }
+        }
+      });
+
+      return ord;
+    });
+
+    return {
+      success: true,
+      message: `Successfully processed refund of ₹${refundAmount.toLocaleString('en-IN')} for Order #${order.orderNumber}. Inventory has been restocked.`,
+      refund: refundResult,
+      order: updatedOrder
+    };
+  }
+
+  /**
    * Normalizes database record to domain PaymentResponse.
    */
   private formatPaymentResponse(
@@ -229,3 +339,4 @@ export class PaymentService {
 }
 
 export const paymentService = new PaymentService();
+

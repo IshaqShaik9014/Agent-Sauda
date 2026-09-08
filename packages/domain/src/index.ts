@@ -183,6 +183,8 @@ export const OfferEvaluationResultSchema = z.object({
   totalProposedAmount: z.number(),
   totalEffectiveDiscountPercent: z.number(),
   averageGrossMarginPercent: z.number(),
+  isBundleBonusApplied: z.boolean().optional(),
+  bundleBonusPercent: z.number().optional(),
   counterOffer: z
     .object({
       items: z.array(CounterOfferItemSchema),

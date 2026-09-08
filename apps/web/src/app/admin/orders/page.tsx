@@ -15,7 +15,9 @@ import {
   ExternalLink,
   CheckCircle2,
   Clock,
-  X
+  X,
+  RotateCcw,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function AdminOrdersPage() {
@@ -29,6 +31,13 @@ export default function AdminOrdersPage() {
   const [dispatchModalOrder, setDispatchModalOrder] = useState<OrderResponse | null>(null);
   const [carrier, setCarrier] = useState('BlueDart Express');
   const [trackingNumber, setTrackingNumber] = useState('');
+
+  // Refund Modal State
+  const [refundModalOrder, setRefundModalOrder] = useState<OrderResponse | null>(null);
+  const [refundReason, setRefundReason] = useState('Returned in original condition per store policy');
+  const [refundAmount, setRefundAmount] = useState<number>(0);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [refundMessage, setRefundMessage] = useState<string | null>(null);
 
   const loadOrders = async (refresh = false) => {
     const activeMerchant = auth.getActiveMerchant();
@@ -82,6 +91,47 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleExecuteRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const activeMerchant = auth.getActiveMerchant();
+    if (!activeMerchant || !refundModalOrder) return;
+
+    setIsRefunding(true);
+    setRefundMessage(null);
+
+    try {
+      const token = auth.getSession()?.token;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${apiUrl}/api/merchants/${activeMerchant.id}/orders/${refundModalOrder.id}/refund`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: refundAmount > 0 ? refundAmount : undefined,
+          reason: refundReason
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Refund execution failed');
+      }
+
+      setRefundMessage(`🎉 Refund processed successfully! Refund ID: ${data.refund?.refundId || 'Processed'}`);
+      setTimeout(() => {
+        setRefundModalOrder(null);
+        setRefundMessage(null);
+        loadOrders(true);
+      }, 1500);
+    } catch (err: any) {
+      alert(`Refund failed: ${err.message}`);
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PAID':
@@ -109,7 +159,7 @@ export default function AdminOrdersPage() {
             Orders & Fulfillment Pipeline
           </h1>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Track customer orders and manage warehouse packaging and courier dispatch
+            Track customer orders, manage warehouse dispatch, and execute automated Razorpay refunds
           </p>
         </div>
 
@@ -122,10 +172,10 @@ export default function AdminOrdersPage() {
           >
             <option value="">All Order Statuses</option>
             <option value="PAID">Paid (Ready for Packaging)</option>
-            <option value="FULFILLMENT_PROCESSING">In Packaging</option>
+            <option value="FULFILLMENT_PENDING">In Packaging</option>
             <option value="COMPLETED">Completed / Shipped</option>
             <option value="PAYMENT_PENDING">Payment Pending</option>
-            <option value="CANCELLED">Cancelled</option>
+            <option value="CANCELLED">Cancelled / Refunded</option>
           </select>
 
           <button
@@ -164,7 +214,7 @@ export default function AdminOrdersPage() {
                   <th className="p-4 font-semibold text-right">Total Amount</th>
                   <th className="p-4 font-semibold text-center">Status</th>
                   <th className="p-4 font-semibold">Delivery Notes</th>
-                  <th className="p-4 font-semibold text-right">Fulfillment Action</th>
+                  <th className="p-4 font-semibold text-right">Fulfillment Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60">
@@ -221,6 +271,19 @@ export default function AdminOrdersPage() {
                         >
                           <PackageCheck className="h-3.5 w-3.5" />
                           <span>Dispatch Courier</span>
+                        </button>
+                      )}
+
+                      {(order.status === 'PAID' || order.status === 'COMPLETED') && (
+                        <button
+                          onClick={() => {
+                            setRefundModalOrder(order);
+                            setRefundAmount(order.totalAmount);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span>Refund</span>
                         </button>
                       )}
 
@@ -304,6 +367,104 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       )}
+
+      {/* Razorpay Refund Modal */}
+      {refundModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                  <RotateCcw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100">Execute Razorpay Refund</h3>
+                  <p className="text-[11px] text-zinc-400">Order #{refundModalOrder.orderNumber}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRefundModalOrder(null)}
+                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteRefund} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                  Refund Amount (₹ INR)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={refundModalOrder.totalAmount}
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(Number(e.target.value))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-mono font-bold text-zinc-100 focus:border-rose-500 focus:outline-none"
+                />
+                <span className="text-[10px] text-zinc-500 mt-1 block">
+                  Original order total: ₹{refundModalOrder.totalAmount.toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                  Refund / Return Reason
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="e.g. Buyer returned within 7-day policy"
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-xs text-zinc-200 focus:border-rose-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="rounded-xl bg-zinc-900/80 p-3 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
+                <div className="flex items-center gap-1.5 text-zinc-300 font-semibold">
+                  <ShieldAlert className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                  <span>Automated Reversal Details:</span>
+                </div>
+                <p>
+                  &bull; Calls Razorpay <code className="text-zinc-200">POST /v1/payments/:id/refund</code>.
+                </p>
+                <p>
+                  &bull; Automatically restocks reserved units back to available warehouse inventory.
+                </p>
+              </div>
+
+              {refundMessage && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>{refundMessage}</span>
+                </div>
+              )}
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRefundModalOrder(null)}
+                  className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 py-2.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRefunding}
+                  className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-500 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-600/20 transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {isRefunding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                  <span>Execute Refund</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

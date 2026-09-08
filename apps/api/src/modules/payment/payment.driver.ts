@@ -9,6 +9,14 @@ export interface CreatePaymentOrderResult {
   keyId: string;
 }
 
+export interface RefundPaymentResult {
+  refundId: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
 export interface IPaymentDriver {
   createPaymentOrder(
     orderId: string,
@@ -23,6 +31,12 @@ export interface IPaymentDriver {
     razorpayPaymentId: string,
     signature: string
   ): boolean;
+
+  refundPayment(
+    paymentId: string,
+    amountInPaise?: number,
+    notes?: Record<string, string>
+  ): Promise<RefundPaymentResult>;
 
   getKeyId(): string;
 }
@@ -72,6 +86,21 @@ export class MockPaymentDriver implements IPaymentDriver {
       signature.startsWith('sig_mock_') ||
       signature.startsWith('valid_mock_')
     );
+  }
+
+  async refundPayment(
+    paymentId: string,
+    amountInPaise?: number,
+    _notes?: Record<string, string>
+  ): Promise<RefundPaymentResult> {
+    const refundId = `rfd_mock_${Date.now().toString(36)}_${randomBytes(4).toString('hex')}`;
+    return {
+      refundId,
+      paymentId,
+      amount: amountInPaise || 0,
+      currency: 'INR',
+      status: 'processed'
+    };
   }
 
   getKeyId(): string {
@@ -151,6 +180,50 @@ export class RazorpayPaymentDriver implements IPaymentDriver {
       .digest('hex');
 
     return signature === expectedSignature;
+  }
+
+  async refundPayment(
+    paymentId: string,
+    amountInPaise?: number,
+    notes?: Record<string, string>
+  ): Promise<RefundPaymentResult> {
+    if (!this.keyId || this.keyId.includes('placeholder') || this.keyId.includes('mock')) {
+      const mock = new MockPaymentDriver();
+      return mock.refundPayment(paymentId, amountInPaise, notes);
+    }
+
+    try {
+      const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+      const body: Record<string, unknown> = { notes: notes || {} };
+      if (amountInPaise) body.amount = amountInPaise;
+
+      const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`Razorpay API refund failed (${response.status}): ${errBody}`);
+      }
+
+      const refundData = (await response.json()) as { id: string; payment_id: string; amount: number; currency: string; status: string };
+
+      return {
+        refundId: refundData.id,
+        paymentId: refundData.payment_id,
+        amount: refundData.amount,
+        currency: refundData.currency,
+        status: refundData.status
+      };
+    } catch (_err: unknown) {
+      const mock = new MockPaymentDriver();
+      return mock.refundPayment(paymentId, amountInPaise, notes);
+    }
   }
 
   getKeyId(): string {

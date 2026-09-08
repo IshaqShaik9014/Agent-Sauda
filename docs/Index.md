@@ -49,6 +49,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-023 PostgreSQL pgvector Knowledge RAG and B2B Commerce SDK]]: Neon pgvector document chunking, tenant-isolated cosine similarity, B2B SDK layer, and bounded autonomy.
 * [[ADR-024 Production Docker Containerization]]: Multi-stage Docker builds, Next.js 15 standalone optimization (~120MB), non-root users, and Docker Compose orchestration.
 * [[ADR-025 Real-Time SSE Chat Streaming and HMAC Multi-Channel HITL Notifications]]: Server-Sent Events (SSE) token streaming, live tool telemetry, and SHA-256 HMAC 1-click mobile manager approvals.
+* [[ADR-026 Merchant Knowledge Document Upload, Buyer OTP Verification, Bundle Optimization, and Automated Razorpay Refunds]]: Drag-and-drop document auto-chunking in pgvector RAG, verified buyer OTP modal, cross-basket bundle margin pooling (+2.5% elasticity), and live Razorpay payment refunds with stock replenishment.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.

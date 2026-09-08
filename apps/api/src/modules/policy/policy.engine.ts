@@ -113,16 +113,44 @@ export function evaluateOfferAgainstPolicy(
       ? Number((((totalProposedAmount - totalCostAmount) / totalProposedAmount) * 100).toFixed(2))
       : 0;
 
+  // 3.5 Evaluate Multi-Product Bundle & Cross-Basket Margin Optimization
+  const totalItemCount = itemFacts.reduce((sum, i) => sum + i.quantity, 0);
+  const isMultiItemBundle = itemFacts.length >= 2 || totalItemCount >= 3;
+  let isBundleBonusApplied = false;
+  let bundleBonusPercent = 0;
+
+  // If customer is bundling multiple items and combined gross margin is healthy (≥ minimumMargin + 4%), grant +2.5% bonus discount elasticity
+  const bundleMarginThreshold = policy.minimumMarginPercent + 4;
+  if (isMultiItemBundle && averageGrossMarginPercent >= bundleMarginThreshold) {
+    isBundleBonusApplied = true;
+    bundleBonusPercent = 2.5;
+
+    breakdowns.push({
+      ruleName: 'POLICY_RULE_BUNDLE_OPTIMIZATION',
+      passed: true,
+      value: averageGrossMarginPercent,
+      threshold: bundleMarginThreshold,
+      message: `🎉 Multi-Product Bundle Optimization: Unlocked +${bundleBonusPercent}% bundle discount bonus! Combined basket gross margin (${averageGrossMarginPercent}%) exceeds ${bundleMarginThreshold}% floor.`
+    });
+  }
+
+  const effectiveMaxDiscount = policy.maxDiscountPercent + (isBundleBonusApplied ? bundleBonusPercent : 0);
+
+  // Re-evaluate discount cap against effective bundle threshold if bonus applied
+  if (isBundleBonusApplied && hasDiscountViolation && totalEffectiveDiscountPercent <= effectiveMaxDiscount) {
+    hasDiscountViolation = false;
+  }
+
   // 4.5 Evaluate Discount Approval Tiers (e.g. ≤5% Auto-Allow, 5-10% Manager Approval)
   const rules = (policy.rules as Record<string, unknown>) || {};
   const autoApproveDiscountPercent =
     typeof rules['autoApproveDiscountPercent'] === 'number'
-      ? (rules['autoApproveDiscountPercent'] as number)
-      : policy.maxDiscountPercent;
+      ? (rules['autoApproveDiscountPercent'] as number) + (isBundleBonusApplied ? bundleBonusPercent : 0)
+      : effectiveMaxDiscount;
 
   const requiresDiscountApproval =
     totalEffectiveDiscountPercent > autoApproveDiscountPercent &&
-    totalEffectiveDiscountPercent <= policy.maxDiscountPercent;
+    totalEffectiveDiscountPercent <= effectiveMaxDiscount;
 
   if (requiresDiscountApproval) {
     reasons.push(
@@ -152,7 +180,11 @@ export function evaluateOfferAgainstPolicy(
     // Fully compliant with all merchant policy parameters
     decision = 'ALLOW';
     allowed = true;
-    reasons.push('Offer complies with all active discount, margin, and order threshold policies.');
+    reasons.push(
+      isBundleBonusApplied
+        ? `Offer complies with merchant policy and includes a +${bundleBonusPercent}% multi-product bundle discount bonus.`
+        : 'Offer complies with all active discount, margin, and order threshold policies.'
+    );
   }
 
   const totalCounterAmount = counterItems.reduce(
@@ -172,6 +204,8 @@ export function evaluateOfferAgainstPolicy(
     totalProposedAmount: Number(totalProposedAmount.toFixed(2)),
     totalEffectiveDiscountPercent,
     averageGrossMarginPercent,
+    isBundleBonusApplied,
+    bundleBonusPercent: isBundleBonusApplied ? bundleBonusPercent : 0,
     counterOffer:
       decision === 'COUNTER'
         ? {
