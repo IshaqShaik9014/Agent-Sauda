@@ -9,10 +9,12 @@ import {
   ShieldAlert,
   Loader2,
   XCircle,
-  Sparkles
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import type { OfferResponse, SupportedCurrency } from '@agent-sauda/domain';
 import { formatCurrencyAmount } from '@agent-sauda/domain';
+import { InvoiceModal, type InvoiceData } from './InvoiceModal';
 
 interface OfferCardProps {
   offer: OfferResponse;
@@ -31,6 +33,7 @@ export function OfferCard({
 }: OfferCardProps) {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
   const handleAccept = async () => {
     if (!onAccept) {
@@ -69,10 +72,19 @@ export function OfferCard({
           <div className="flex h-6 w-6 items-center justify-center rounded bg-emerald-500/20 text-emerald-400">
             <Tag className="h-3.5 w-3.5" />
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-zinc-200">
               Formal Quote #{offer.offerNumber}
             </span>
+            <button
+              type="button"
+              onClick={() => setIsInvoiceOpen(true)}
+              title="Export Proforma Tax Quote (PDF / Print)"
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-700/80 bg-zinc-800/80 px-2 py-0.5 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition"
+            >
+              <FileText className="h-3 w-3 text-indigo-400" />
+              <span>PDF Quote</span>
+            </button>
           </div>
         </div>
 
@@ -225,6 +237,38 @@ export function OfferCard({
           </button>
         </div>
       )}
+
+      {/* Formal Tax Proforma Quote Modal */}
+      <InvoiceModal
+        isOpen={isInvoiceOpen}
+        onClose={() => setIsInvoiceOpen(false)}
+        data={{
+          documentType: 'PROFORMA_QUOTE',
+          documentNumber: offer.offerNumber || 'QUOTE-ACTIVE',
+          date: new Date(offer.createdAt).toLocaleDateString(),
+          validUntil: offer.expiresAt ? new Date(offer.expiresAt).toLocaleDateString() : undefined,
+          merchantName: offer.merchant?.name || 'Agent Sauda Storefront',
+          merchantGstin: '29AABCU9603R1ZM',
+          customerName: 'Verified B2B Buyer',
+          customerPhone: '+91 98765 43210',
+          customerEmail: 'buyer@enterprise.in',
+          isCustomerVerified: true,
+          items: offer.items.map((i) => ({
+            id: i.id,
+            productTitle: i.productTitle,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            agreedPrice: i.agreedPrice,
+            subtotal: i.subtotal
+          })),
+          subtotal: offer.subtotal,
+          discountAmount: offer.discountAmount,
+          discountPercent: offer.discountPercent,
+          totalAmount: offer.totalAmount,
+          currency: activeCurrency,
+          status: offer.status
+        }}
+      />
     </div>
   );
 }

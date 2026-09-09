@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, type AuthSession } from '../../../lib/auth';
 import {
   Code2,
@@ -19,10 +19,26 @@ import {
   Play,
   FileCode,
   Globe,
-  Bot
+  Bot,
+  MessageSquare,
+  Smartphone,
+  Send,
+  ExternalLink,
+  CreditCard,
+  FileText
 } from 'lucide-react';
 import { AgentSaudaLogo } from '../../../components/AgentSaudaLogo';
 import { RazorpayBadge } from '../../../components/RazorpayBadge';
+
+interface WhatsAppChatMessage {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string;
+  timestamp: string;
+  buttons?: Array<{ id: string; title: string }>;
+  quotationUrl?: string;
+  activeOffer?: any;
+}
 
 export default function ConnectSdkPage() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -36,21 +52,42 @@ export default function ConnectSdkPage() {
   const [keyCreatedAt, setKeyCreatedAt] = useState<string>('Generated today');
 
   // Active Snippet Tab
-  const [activeTab, setActiveTab] = useState<'rest' | 'typescript' | 'widget' | 'python'>('rest');
+  const [activeTab, setActiveTab] = useState<'rest' | 'whatsapp' | 'typescript' | 'widget' | 'python'>('rest');
 
   // Interactive Live Playground State
   const [testMessage, setTestMessage] = useState('Can I get 2 Study Chairs for ₹5,500 each?');
   const [isExecutingTest, setIsExecutingTest] = useState(false);
   const [testResponse, setTestResponse] = useState<any>(null);
 
+  // WhatsApp Smartphone Simulator State
+  const [waPhone, setWaPhone] = useState('+91 98765 43210');
+  const [waInput, setWaInput] = useState('');
+  const [waIsTyping, setWaIsTyping] = useState(false);
+  const [waMessages, setWaMessages] = useState<WhatsAppChatMessage[]>([
+    {
+      id: 'wa-1',
+      sender: 'bot',
+      text: '👋 *Hello! Welcome to ABC Furniture B2B Wholesale.*\n\nI am your automated sales representative powered by Agent Sauda. How can I help you today? Inquire about stock, request bulk volume quotes, or confirm orders directly via UPI!',
+      timestamp: '10:42 AM',
+      buttons: [
+        { id: 'request_discount', title: '💬 Request Bulk Quote' },
+        { id: 'view_catalog', title: '📦 View Catalog' }
+      ]
+    }
+  ]);
+  const waChatEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setSession(auth.getSession());
-    // Load persisted or generated key
     const savedKey = localStorage.getItem('agent_sauda_api_key');
     if (savedKey) {
       setApiKey(savedKey);
     }
   }, []);
+
+  useEffect(() => {
+    waChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [waMessages, waIsTyping]);
 
   const merchantId = session?.merchant.id || 'c45a6b05-78f9-4ee3-a3ab-64b05383d81d';
   const merchantName = session?.merchant.name || 'ABC Furniture Ltd';
@@ -122,6 +159,66 @@ export default function ConnectSdkPage() {
     }
   };
 
+  // Handle WhatsApp Inbound Message in Simulator
+  const handleSendWhatsAppMessage = async (textToSend?: string) => {
+    const msgText = textToSend || waInput;
+    if (!msgText.trim() || waIsTyping) return;
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const userMsg: WhatsAppChatMessage = {
+      id: `usr-${Date.now()}`,
+      sender: 'user',
+      text: msgText,
+      timestamp: timeStr
+    };
+
+    setWaMessages((prev) => [...prev, userMsg]);
+    if (!textToSend) setWaInput('');
+    setWaIsTyping(true);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/agent/whatsapp/webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          merchantId,
+          merchantSlug,
+          from: waPhone,
+          message: msgText,
+          customerName: 'WhatsApp B2B Buyer'
+        })
+      });
+
+      const data = await res.json();
+      const botMsg: WhatsAppChatMessage = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: data.reply || data.plainReply || data.message || 'Thanks for your inquiry! Our catalog is available online.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        buttons: data.interactiveButtons,
+        quotationUrl: data.quotationUrl,
+        activeOffer: data.activeOffer
+      };
+      setWaMessages((prev) => [...prev, botMsg]);
+    } catch {
+      const botFallback: WhatsAppChatMessage = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: `*${merchantName} AI Sales Assistant*\n\n✅ Thank you for your inquiry! We can offer bulk volume pricing on your order. Click below to generate your official GST Tax Invoice quotation.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        buttons: [
+          { id: 'req_pdf', title: '📄 Proforma Invoice' },
+          { id: 'pay_upi', title: '💳 Pay via Razorpay' }
+        ]
+      };
+      setWaMessages((prev) => [...prev, botFallback]);
+    } finally {
+      setWaIsTyping(false);
+    }
+  };
+
   // Code Snippets for different integration methods
   const restApiSnippet = `// 1. Zero-dependency Universal REST API (Works in ANY backend, curl, or Postman)
 curl -X POST "${apiUrl}/api/v1/commerce/process" \\
@@ -132,6 +229,22 @@ curl -X POST "${apiUrl}/api/v1/commerce/process" \\
     "merchantSlug": "${merchantSlug}",
     "message": "Can I get 2 Study Chairs for ₹5,500 each?",
     "customerName": "John Doe"
+  }'`;
+
+  const whatsappSnippet = `// 1. Meta WhatsApp Business Cloud API Webhook Integration
+// In Meta Developer Portal -> WhatsApp -> Configuration -> Callback URL:
+// URL: ${apiUrl}/api/webhooks/whatsapp
+// Verify Token: agent_sauda_wa_verify_2026
+// Subscribed Webhook Fields: messages
+
+// 2. Direct HTTP Inbound WhatsApp Webhook (For Twilio / Gupshup / Custom Bot)
+curl -X POST "${apiUrl}/api/agent/whatsapp/webhook" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "merchantSlug": "${merchantSlug}",
+    "from": "+919876543210",
+    "customerName": "Acme Corp Buyer",
+    "message": "Need 5 Nexus Ergonomic Chairs, can you do ₹18,500 each?"
   }'`;
 
   const tsSdkSnippet = `// 1. Install SDK in your project: npm install @agent-sauda/sdk
@@ -242,9 +355,9 @@ print("Agent Sauda Output:", result["reply"])`;
 
         <div className="rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-4 relative overflow-hidden">
           <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Step 2</div>
-          <h4 className="text-xs font-bold text-white">Connect SDK or REST API</h4>
+          <h4 className="text-xs font-bold text-white">Connect SDK or WhatsApp</h4>
           <p className="text-[11px] text-slate-400 mt-1">
-            Choose REST API (cURL), TypeScript SDK, Python package, or 1-line script tag.
+            Choose WhatsApp Bot, REST API (cURL), TypeScript SDK, Python package, or 1-line script tag.
           </p>
         </div>
 
@@ -357,6 +470,17 @@ print("Agent Sauda Output:", result["reply"])`;
               REST API / cURL
             </button>
             <button
+              onClick={() => setActiveTab('whatsapp')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'whatsapp'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-400 hover:bg-emerald-950/40'
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              WhatsApp Cloud Bot
+            </button>
+            <button
               onClick={() => setActiveTab('typescript')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                 activeTab === 'typescript'
@@ -364,7 +488,7 @@ print("Agent Sauda Output:", result["reply"])`;
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              TypeScript / Node SDK
+              TypeScript SDK
             </button>
             <button
               onClick={() => setActiveTab('widget')}
@@ -408,7 +532,26 @@ print("Agent Sauda Output:", result["reply"])`;
           </div>
         )}
 
-        {/* Tab 2: TypeScript SDK */}
+        {/* Tab 2: WhatsApp Cloud API */}
+        {activeTab === 'whatsapp' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>Meta WhatsApp Cloud API Webhook — Ingest messages and respond with interactive buttons and quotes.</span>
+              <button
+                onClick={() => copyToClipboard(whatsappSnippet, 'wa')}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200"
+              >
+                {copiedKey === 'wa' ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copiedKey === 'wa' ? 'Copied!' : 'Copy Config'}</span>
+              </button>
+            </div>
+            <div className="relative rounded-xl border border-emerald-950/60 bg-slate-950 p-4 font-mono text-xs text-slate-300 overflow-x-auto">
+              <pre>{whatsappSnippet}</pre>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: TypeScript SDK */}
         {activeTab === 'typescript' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-slate-400">
@@ -427,7 +570,7 @@ print("Agent Sauda Output:", result["reply"])`;
           </div>
         )}
 
-        {/* Tab 3: 1-Line Embed Widget */}
+        {/* Tab 4: 1-Line Embed Widget */}
         {activeTab === 'widget' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-slate-400">
@@ -446,7 +589,7 @@ print("Agent Sauda Output:", result["reply"])`;
           </div>
         )}
 
-        {/* Tab 4: Python */}
+        {/* Tab 5: Python */}
         {activeTab === 'python' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-slate-400">
@@ -466,11 +609,164 @@ print("Agent Sauda Output:", result["reply"])`;
         )}
       </div>
 
+      {/* WhatsApp B2B Live Smartphone Simulator */}
+      <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/40 p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-emerald-400" />
+                Live WhatsApp B2B Commerce Simulator
+              </h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Experience the end-to-end WhatsApp conversational negotiation and UPI payment flow in real-time.
+            </p>
+          </div>
+
+          {/* Preset Prompts Chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleSendWhatsAppMessage('Need 4 Executive Desks, can you do ₹14,000 each?')}
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition"
+            >
+              💬 Bulk 4 Desks Deal
+            </button>
+            <button
+              onClick={() => handleSendWhatsAppMessage('What is your warranty and delivery timeline to Mumbai?')}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-medium text-slate-300 hover:bg-slate-700 transition"
+            >
+              🚚 Warranty & Shipping
+            </button>
+          </div>
+        </div>
+
+        {/* Smartphone Frame Container */}
+        <div className="max-w-md mx-auto rounded-3xl border-4 border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+          {/* WhatsApp Header Bar */}
+          <div className="bg-emerald-800 px-4 py-3 flex items-center justify-between text-white shadow-md">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-xs border border-emerald-500/40">
+                AS
+              </div>
+              <div>
+                <h4 className="text-xs font-bold leading-tight flex items-center gap-1.5">
+                  {merchantName} B2B
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                </h4>
+                <span className="text-[10px] text-emerald-200">Verified Business Account &bull; Online</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-emerald-200">
+              <RazorpayBadge className="scale-90 text-[10px]" />
+            </div>
+          </div>
+
+          {/* WhatsApp Chat Conversation Area */}
+          <div
+            className="p-4 space-y-3 min-h-[380px] max-h-[440px] overflow-y-auto"
+            style={{
+              backgroundImage: `radial-gradient(#1e293b 1px, transparent 1px)`,
+              backgroundSize: '16px 16px',
+              backgroundColor: '#090d16'
+            }}
+          >
+            {waMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed shadow-md ${
+                    msg.sender === 'user'
+                      ? 'bg-emerald-700 text-white rounded-tr-none'
+                      : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-tl-none'
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
+
+                  {/* Interactive Quick Reply Buttons */}
+                  {msg.buttons && msg.buttons.length > 0 && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 space-y-1.5">
+                      {msg.buttons.map((btn) => (
+                        <button
+                          key={btn.id}
+                          onClick={() => handleSendWhatsAppMessage(btn.title)}
+                          className="w-full text-center py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-[11px] font-bold text-emerald-300 transition flex items-center justify-center gap-1.5"
+                        >
+                          {btn.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Proforma Invoice / Checkout Button */}
+                  {msg.activeOffer && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-emerald-400">
+                        Deal Locked: ₹{msg.activeOffer.totalAmount}
+                      </span>
+                      <a
+                        href={msg.quotationUrl || `/checkout/${msg.activeOffer.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:underline"
+                      >
+                        <span>Open Invoice</span>
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Timestamp & Delivery status */}
+                  <div className="mt-1 flex items-center justify-end gap-1 text-[9px] text-slate-400">
+                    <span>{msg.timestamp}</span>
+                    {msg.sender === 'user' && <span className="text-emerald-300 font-bold">✓✓</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Typing Indicator */}
+            {waIsTyping && (
+              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-3 max-w-[120px]">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-bounce" />
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-bounce delay-150" />
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-bounce delay-300" />
+              </div>
+            )}
+            <div ref={waChatEndRef} />
+          </div>
+
+          {/* WhatsApp Message Input Bar */}
+          <div className="bg-slate-900 border-t border-slate-800 p-2.5 flex items-center gap-2">
+            <input
+              type="text"
+              value={waInput}
+              onChange={(e) => setWaInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSendWhatsAppMessage();
+              }}
+              placeholder="Type WhatsApp message..."
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-full px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              onClick={() => handleSendWhatsAppMessage()}
+              disabled={waIsTyping || !waInput.trim()}
+              className="h-8 w-8 rounded-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 flex items-center justify-center text-white shrink-0 shadow transition"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Live Interactive API Playground */}
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Play className="h-5 w-5 text-emerald-400" />
+            <Play className="h-5 w-5 text-indigo-400" />
             <h3 className="text-sm font-bold text-white">Live API Gateway Playground</h3>
           </div>
           <span className="text-xs text-slate-400">Test live payload execution right in browser</span>

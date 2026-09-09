@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@agent-sauda/domain": ["../../packages/domain/src/index.ts"],
+      "@agent-sauda/domain/*": ["../../packages/domain/src/*"],
+      "@agent-sauda/database": ["../../packages/database/src/index.ts"],
+      "@agent-sauda/database/*": ["../../packages/database/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

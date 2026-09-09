@@ -17,8 +17,10 @@ import {
   Clock,
   X,
   RotateCcw,
-  ShieldAlert
+  ShieldAlert,
+  FileText
 } from 'lucide-react';
+import { InvoiceModal, type InvoiceData } from '../../../components/InvoiceModal';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
@@ -26,6 +28,7 @@ export default function AdminOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<OrderResponse | null>(null);
 
   // Dispatch Modal State
   const [dispatchModalOrder, setDispatchModalOrder] = useState<OrderResponse | null>(null);
@@ -287,6 +290,14 @@ export default function AdminOrdersPage() {
                         </button>
                       )}
 
+                      <button
+                        onClick={() => setSelectedInvoiceOrder(order)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+                      >
+                        <FileText className="h-3 w-3 text-indigo-400" />
+                        <span>Invoice</span>
+                      </button>
+
                       <Link
                         href={`/orders/${order.id}/track`}
                         target="_blank"
@@ -463,6 +474,44 @@ export default function AdminOrdersPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Official Commercial Tax Invoice Modal */}
+      {selectedInvoiceOrder && (
+        <InvoiceModal
+          isOpen={!!selectedInvoiceOrder}
+          onClose={() => setSelectedInvoiceOrder(null)}
+          data={{
+            documentType: 'TAX_INVOICE',
+            documentNumber: selectedInvoiceOrder.orderNumber,
+            date: new Date(selectedInvoiceOrder.createdAt).toLocaleDateString(),
+            merchantName: (selectedInvoiceOrder as any).merchant?.name || 'Agent Sauda Store',
+            merchantGstin: '29AABCU9603R1ZM',
+            customerName: (selectedInvoiceOrder as any).buyer?.name || (selectedInvoiceOrder as any).customerName || 'Verified B2B Client',
+            customerPhone: (selectedInvoiceOrder as any).buyer?.phone || (selectedInvoiceOrder as any).customerPhone || '+91 98765 43210',
+            customerEmail: (selectedInvoiceOrder as any).buyer?.email || (selectedInvoiceOrder as any).customerEmail || 'procurement@enterprise.in',
+            isCustomerVerified: true,
+            items: selectedInvoiceOrder.items.map((i: any) => ({
+              id: i.id,
+              productTitle: i.title || i.productTitle || 'Product',
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              agreedPrice: i.agreedPrice,
+              subtotal: i.total || i.subtotal || i.quantity * i.agreedPrice
+            })),
+            subtotal: selectedInvoiceOrder.subtotal,
+            discountAmount: selectedInvoiceOrder.discountAmount,
+            discountPercent: Number(
+              selectedInvoiceOrder.subtotal > 0
+                ? ((selectedInvoiceOrder.discountAmount / selectedInvoiceOrder.subtotal) * 100).toFixed(1)
+                : 0
+            ),
+            totalAmount: selectedInvoiceOrder.totalAmount,
+            currency: (selectedInvoiceOrder.currency as any) || 'INR',
+            status: selectedInvoiceOrder.status,
+            paymentId: (selectedInvoiceOrder as any).payments?.[0]?.razorpayPaymentId || (selectedInvoiceOrder as any).payments?.[0]?.id || (selectedInvoiceOrder as any).paymentId
+          }}
+        />
       )}
     </div>
   );

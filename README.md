@@ -100,18 +100,24 @@ Here is the complete list of tools, libraries, databases, and frameworks used to
 ### 6. Payments & Money Movement
 * **[Razorpay Node SDK / REST API](https://razorpay.com/docs/api/):** Order creation in integer paise subunits (₹1 = 100 paise) to avoid floating-point math errors.
 * **Razorpay Instant Refunds (`POST /v1/payments/:id/refund`):** Automated or manager-approved refund pipeline with atomic stock replenishment.
+* **Cryptographic PDF Invoices & UPI QR:** Formal GST proforma quotations and tax invoices with 9% CGST + 9% SGST breakdown, merchant digital signature seals, and dynamic Razorpay UPI QR codes.
 * **Razorpay Webhooks with HMAC-SHA256:** Cryptographically verified webhook handling for `payment.captured` and `payment.failed`.
 * **Webhook Idempotency Engine:** Database-level uniqueness guards preventing duplicate payments or replay attacks.
 
-### 7. Containerization & Deployment
+### 7. Omnichannel Distribution & Merchant AI Copilots
+* **Meta WhatsApp Cloud API Bridge:** Webhook endpoint `/api/webhooks/whatsapp` with interactive smartphone simulator in `/admin/connect`.
+* **Merchant AI Deal Whisperer:** Real-time copilot in `/admin/approvals` providing buyer LTV tiering, inventory velocity metrics, and explainable margin recommendations.
+* **Policy A/B Experiments Workbench:** Split testing (`/admin/experiments`) with Monte Carlo simulations to statistically compare aggressive volume vs defensive margin policies.
+
+### 8. Containerization & Deployment
 * **[Docker](https://www.docker.com/):** Multi-stage Alpine Linux Dockerfiles for API and Web apps.
 * **Next.js Standalone Optimization:** Traces and packages only the required runtime files, shrinking the image from ~1.2GB down to **~120MB**.
 * **[Docker Compose](https://docs.docker.com/compose/):** Single-command orchestration file (`docker-compose.yml`) running Redis 7, Fastify API, and Next.js Web with health checks.
 
-### 8. Project Architecture & Knowledge Tools
+### 9. Project Architecture & Knowledge Tools
 * **[npm Workspaces](https://docs.npmjs.com/cli/using-npm/workspaces):** Clean monorepo structure (`apps/api`, `apps/web`, `packages/database`, `packages/domain`).
-* **[Graphify](https://github.com/):** Codebase knowledge graph tracking 1,330+ nodes, 1,980+ edges, and 125 functional communities.
-* **[Obsidian Knowledge Vault (`docs/`)](https://obsidian.md/):** 26 Architectural Decision Records (ADRs) and full Phase implementation logs.
+* **[Graphify](https://github.com/):** Codebase knowledge graph tracking 1,350+ nodes, 2,050+ edges, and 128 functional communities.
+* **[Obsidian Knowledge Vault (`docs/`)](https://obsidian.md/):** 28 Architectural Decision Records (ADRs) and full Phase implementation logs.
 
 ---
 

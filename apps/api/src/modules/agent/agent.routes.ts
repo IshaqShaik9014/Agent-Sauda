@@ -475,4 +475,173 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+
+  /**
+   * GET /api/agent/whatsapp/webhook & GET /api/webhooks/whatsapp
+   * WhatsApp Business Cloud API webhook verification handshake.
+   */
+  const handleWhatsAppVerify = async (request: any, reply: any) => {
+    const query = request.query as {
+      'hub.mode'?: string;
+      'hub.verify_token'?: string;
+      'hub.challenge'?: string;
+    };
+
+    const mode = query['hub.mode'];
+    const token = query['hub.verify_token'];
+    const challenge = query['hub.challenge'];
+
+    const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'agent_sauda_wa_verify_2026';
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      return reply.status(200).send(challenge);
+    }
+    return reply.status(403).send({ error: 'Forbidden. Invalid WhatsApp verification token.' });
+  };
+
+  fastify.get('/agent/whatsapp/webhook', handleWhatsAppVerify);
+  fastify.get('/webhooks/whatsapp', handleWhatsAppVerify);
+
+  /**
+   * POST /api/agent/whatsapp/webhook & POST /api/webhooks/whatsapp
+   * Inbound WhatsApp message handler supporting both Meta Cloud API and Developer Simulator.
+   */
+  const handleWhatsAppInbound = async (request: any, reply: any) => {
+    const rawBody = request.body as any;
+
+    let from = '+919876543210';
+    let messageText = '';
+    let customerName = 'WhatsApp Client';
+    let merchantSlug = rawBody?.merchantSlug || 'abc-furniture';
+    let merchantId = rawBody?.merchantId;
+    let conversationId = rawBody?.conversationId;
+
+    // Check if Meta Cloud API Webhook structure
+    if (rawBody?.entry && Array.isArray(rawBody.entry) && rawBody.entry[0]?.changes) {
+      const change = rawBody.entry[0].changes[0]?.value;
+      const msg = change?.messages?.[0];
+      const contact = change?.contacts?.[0];
+
+      if (msg) {
+        from = msg.from || from;
+        messageText = msg.text?.body || msg.interactive?.button_reply?.title || '';
+        customerName = contact?.profile?.name || customerName;
+      }
+    } else {
+      // Direct Simulator / REST Payload format
+      from = rawBody?.from || rawBody?.sender || from;
+      messageText = rawBody?.message || rawBody?.body || rawBody?.text || '';
+      customerName = rawBody?.customerName || customerName;
+    }
+
+    if (!messageText.trim()) {
+      return reply.status(200).send({
+        status: 'IGNORED',
+        message: 'No text message to process.'
+      });
+    }
+
+    // Resolve target merchant
+    let targetMerchant = null;
+    if (merchantId) {
+      targetMerchant = await prisma.merchant.findUnique({ where: { id: merchantId } });
+    } else {
+      targetMerchant = await prisma.merchant.findFirst({ where: { slug: merchantSlug } });
+      if (!targetMerchant) {
+        targetMerchant = await prisma.merchant.findFirst();
+      }
+    }
+
+    if (!targetMerchant) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'MERCHANT_NOT_FOUND', message: 'Target merchant not found for WhatsApp routing.' }
+      });
+    }
+
+    try {
+      // Sanitize inputs
+      const sanitizedText = sanitizeString(messageText);
+      const sanitizedName = sanitizeString(customerName);
+
+      // Execute grounded negotiation chat
+      const chatResult = await agentService.chat(targetMerchant.id, {
+        conversationId,
+        message: sanitizedText,
+        customerId: `wa_${from.replace(/[^0-9]/g, '')}`,
+        customerName: sanitizedName
+      });
+
+      // Format WhatsApp Markdown response
+      const waFormattedText = `*${targetMerchant.name} AI Sales Assistant*\n\n${chatResult.message}`;
+
+      const buttons: Array<{ id: string; title: string }> = [];
+      let quotationUrl = '';
+
+      if (chatResult.activeOffer) {
+        quotationUrl = `${process.env.APP_URL || 'http://localhost:3000'}/checkout/${chatResult.activeOffer.id}`;
+        buttons.push({
+          id: `pay_${chatResult.activeOffer.id}`,
+          title: `💳 Pay ${targetMerchant.currency} ${chatResult.activeOffer.totalAmount}`
+        });
+        buttons.push({
+          id: `quote_${chatResult.activeOffer.id}`,
+          title: `📄 Proforma Invoice`
+        });
+      } else {
+        buttons.push({
+          id: 'request_discount',
+          title: '💬 Request Bulk Quote'
+        });
+        buttons.push({
+          id: 'view_catalog',
+          title: '📦 View Catalog'
+        });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        channel: 'WHATSAPP',
+        from,
+        merchantId: targetMerchant.id,
+        merchantName: targetMerchant.name,
+        conversationId: chatResult.conversationId,
+        reply: waFormattedText,
+        plainReply: chatResult.message,
+        interactiveButtons: buttons,
+        activeOffer: chatResult.activeOffer,
+        evaluationResult: chatResult.evaluationResult,
+        quotationUrl,
+        // Standard WhatsApp Cloud API Payload format
+        whatsappCloudPayload: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: from,
+          type: 'interactive',
+          interactive: {
+            type: 'button',
+            body: { text: waFormattedText },
+            action: {
+              buttons: buttons.map((b) => ({
+                type: 'reply',
+                reply: { id: b.id, title: b.title.slice(0, 20) }
+              }))
+            }
+          }
+        }
+      });
+    } catch (err: unknown) {
+      const error = err as Error;
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: 'WHATSAPP_PROCESSING_FAILED',
+          message: error.message
+        }
+      });
+    }
+  };
+
+  fastify.post('/agent/whatsapp/webhook', handleWhatsAppInbound);
+  fastify.post('/webhooks/whatsapp', handleWhatsAppInbound);
 };

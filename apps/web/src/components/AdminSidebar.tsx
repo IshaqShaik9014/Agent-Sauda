@@ -19,7 +19,8 @@ import {
   ExternalLink,
   BookOpen,
   Code2,
-  FlaskConical
+  FlaskConical,
+  Sparkles
 } from 'lucide-react';
 import { AgentSaudaLogo } from './AgentSaudaLogo';
 
@@ -80,6 +81,11 @@ export function AdminSidebar({ merchant }: AdminSidebarProps) {
       name: 'Policy Guardrails',
       href: '/admin/policy',
       icon: Sliders
+    },
+    {
+      name: 'A/B Experiments',
+      href: '/admin/experiments',
+      icon: Sparkles
     },
     {
       name: 'HITL Approvals',

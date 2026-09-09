@@ -3,7 +3,13 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@agent-sauda/domain": ["../../packages/domain/dist/index.d.ts"],
+      "@agent-sauda/domain/*": ["../../packages/domain/dist/*"],
+      "@agent-sauda/database": ["../../packages/database/dist/index.d.ts"],
+      "@agent-sauda/database/*": ["../../packages/database/dist/*"]
+    }
   },
   "include": ["src/**/*"]
 }

@@ -51,6 +51,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[ADR-025 Real-Time SSE Chat Streaming and HMAC Multi-Channel HITL Notifications]]: Server-Sent Events (SSE) token streaming, live tool telemetry, and SHA-256 HMAC 1-click mobile manager approvals.
 * [[ADR-026 Merchant Knowledge Document Upload, Buyer OTP Verification, Bundle Optimization, and Automated Razorpay Refunds]]: Drag-and-drop document auto-chunking in pgvector RAG, verified buyer OTP modal, cross-basket bundle margin pooling (+2.5% elasticity), and live Razorpay payment refunds with stock replenishment.
 * [[ADR-027 Dynamic Scarcity Guard, Voice Negotiation, Multi-Currency, and Merchant Simulation Sandbox]]: Low inventory urgency guard, Web Speech API hands-free voice negotiation, multi-currency conversion, and multi-agent simulation sandbox (`/admin/simulator`).
+* [[ADR-028 Commercial PDF Invoice Engine, AI Deal Whisperer, WhatsApp Commerce Bridge, and Policy Experiments]]: Printable GST commercial tax invoice & proforma PDF generator, manager AI Deal Whisperer in approvals, Meta WhatsApp Cloud bot bridge with smartphone simulator, and A/B policy experimentation workbench.
 
 ### 3. 🚀 [[Phases Index|Project Phases]]
 * [[Phase 1 Foundation]]: Monorepo setup, Fastify, Next.js 15, TypeScript strictness, and Zod config.
@@ -77,6 +78,7 @@ Welcome to the **Agent Sauda Knowledge Vault**. This Obsidian vault serves as th
 * [[Phase 22 Real-Time SSE Chat Streaming and HITL Webhooks]]: Server-Sent Events chat token streaming, live tool badges, and HMAC webhook alerts.
 * [[Phase 23 RAG Document Upload, OTP Verification, and Refunds]]: Drag-and-drop auto-chunking RAG ingestion, buyer OTP verification, bundle margin elasticity, and automated Razorpay refunds.
 * [[Phase 24 Dynamic Scarcity Guard, Voice Negotiation, and AI Simulation Sandbox]]: Low inventory urgency guard, native Web Speech API voice bargaining, multi-currency formatting, and `/admin/simulator` stress-testing workbench.
+* [[Phase 25 Commercial PDF Invoices, AI Deal Whisperer, WhatsApp Bridge, and Policy Experiments]]: Cryptographic PDF proforma quotes with UPI QR, AI deal copilot in approvals, WhatsApp B2B bot bridge with interactive smartphone simulator, and automated A/B policy experimentation workbench.
 
 ### 4. 💡 [[Concepts Index|Core Concepts]]
 * [[Security Hardening and Rate Limiting]]: Perimeter defense, distributed rate limiting, and malicious payload sanitization.
