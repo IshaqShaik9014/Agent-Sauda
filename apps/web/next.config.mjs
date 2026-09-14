@@ -2,7 +2,14 @@
 const nextConfig = {
   output: 'standalone',
   transpilePackages: ['@agent-sauda/domain'],
-  reactStrictMode: true
+  reactStrictMode: true,
+  webpack: (config) => {
+    config.resolve.extensionAlias = {
+      '.js': ['.js', '.ts', '.tsx'],
+      '.jsx': ['.jsx', '.tsx']
+    };
+    return config;
+  }
 };
 
 export default nextConfig;
